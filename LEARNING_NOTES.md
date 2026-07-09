@@ -48,3 +48,34 @@ Nguồn ý tưởng gốc: [2026-07-06-ai-code-review-bot.html](https://gistcdn.
 
 ## Câu hỏi đang mở (chưa chốt)
 - [ ] Chi tiết pipeline: cấu trúc project (folder layout), package quản lý webhook (Express? Fastify?)
+
+## Tiến độ (2026-07-09) — MVP đã chạy được end-to-end
+
+**Đã xong:**
+- 13 task trong `docs/superpowers/plans/2026-07-09-ai-code-review-bot-mvp.md` — code hoàn chỉnh, 38/38 test pass
+- Repo GitHub: https://github.com/nhd98z2/Happyfeeling (private)
+- Tạo GitHub App thật (App ID `4254577`, installed vào chính repo `Happyfeeling` — dogfooding), cấu hình webhook + private key trong `.env`
+- **TẠM THỜI đổi LLM từ Claude sang Groq** (free, chưa mua credit Claude) — xem chi tiết bên dưới
+- Test PR thật (#1) → bot chạy đúng: nhận webhook → verify signature → lấy diff → gọi Groq → post comment đúng vị trí dòng trên GitHub
+
+### Quyết định tạm thời: Groq thay Claude
+
+- Lý do: tài khoản Anthropic Console chưa mua credit ($0, chưa add thẻ) — dùng Groq để test free trong lúc học pipeline
+- Cách làm: tạo `src/review/llmReviewer.groq.ts` cùng interface `reviewDiff(context, ...)` với bản Claude (`llmReviewer.ts`, **vẫn giữ nguyên, không xoá**) — chỉ khác cách gọi API
+- Các chỗ đã đổi tạm (đều có comment `// TEMP:` trong code để dễ tìm): `pipeline.ts`, `config.ts`, `index.ts`, `.env`/`.env.example` (`ANTHROPIC_API_KEY` → `GROQ_API_KEY`)
+- **Cách revert về Claude sau này:** đảo ngược đúng 3 chỗ TEMP đó (đổi import về `llmReviewer.js`, đổi `groqApiKey` về `anthropicClient: Anthropic`, đổi lại env var) — không đụng gì đến các phần khác của pipeline
+
+### Phát hiện quan trọng khi test — chất lượng review chưa toàn diện
+
+Test với file `sandbox/sample.ts` (cố tình có 3 lỗi: SQL injection, thiếu type annotation, thiếu `return false`, dùng biến `db` chưa khai báo):
+
+- Bot (Groq) chỉ bắt được **1/3** lỗi: SQL injection (severity `high`, fix đề xuất đúng) — verify bằng `tsc --strict` xác nhận 2 lỗi còn lại (`db` undefined, `role` implicit any) là **lỗi compile thật**, không phải nitpick
+- **2 nguyên nhân gốc đã xác định:**
+  1. Prompt hiện tại (`buildPrompt` trong `llmReviewer.groq.ts`) có câu "Bỏ qua nitpick về style/format" — LLM có thể đã hiểu nhầm implicit-any là nitpick rồi bỏ qua
+  2. Groq (`llama-3.3-70b-versatile`) là model nhỏ/nhanh, không mạnh bằng Claude ở việc suy luận nhiều vấn đề cùng lúc trong 1 lần review
+
+**Việc cần làm khi quay lại (mai):**
+- [ ] Khi có credit Claude thật → revert 3 chỗ TEMP, chạy lại đúng PR test trên `sandbox/sample.ts` để so sánh Claude bắt được bao nhiêu/3 lỗi — đây là bằng chứng thực tế cho quyết định "Claude có đáng trả tiền hơn Groq không"
+- [ ] Cân nhắc tune lại prompt — câu "bỏ qua nitpick" có thể đang khiến bot bỏ sót bug thật, không chỉ style
+- [ ] Dọn PR test #1 + branch `test/trigger-review-bot` khi không cần nữa (`gh pr close 1 --delete-branch`)
+- [ ] Nhớ: ngrok URL đổi mỗi lần restart (bản free) — phải cập nhật lại Webhook URL trên GitHub App mỗi lần bật lại `ngrok`
