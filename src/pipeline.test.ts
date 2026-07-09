@@ -3,12 +3,12 @@ import type { PullRequestEvent } from './webhook/parse.js';
 
 vi.mock('./github/client.js', () => ({ getPullRequestDiff: vi.fn() }));
 vi.mock('./review/commentPoster.js', () => ({ postFindings: vi.fn() }));
-vi.mock('./review/llmReviewer.js', () => ({ reviewDiff: vi.fn() }));
+vi.mock('./review/llmReviewer.groq.js', () => ({ reviewDiff: vi.fn() }));
 vi.mock('./logger.js', () => ({ logMetrics: vi.fn() }));
 
 import { getPullRequestDiff } from './github/client.js';
 import { postFindings } from './review/commentPoster.js';
-import { reviewDiff } from './review/llmReviewer.js';
+import { reviewDiff } from './review/llmReviewer.groq.js';
 import { logMetrics } from './logger.js';
 import { runReviewPipeline } from './pipeline.js';
 
@@ -30,9 +30,8 @@ describe('runReviewPipeline', () => {
     vi.mocked(postFindings).mockResolvedValue({ posted: 1, skipped: 0 });
 
     const getToken = vi.fn().mockResolvedValue('tok');
-    const anthropicClient = {} as any;
 
-    await runReviewPipeline(event, { getToken, anthropicClient });
+    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
 
     expect(getPullRequestDiff).toHaveBeenCalledWith('tok', 'acme', 'widgets', 7);
     expect(postFindings).toHaveBeenCalledWith(

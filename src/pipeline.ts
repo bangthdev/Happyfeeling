@@ -1,14 +1,16 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import { getPullRequestDiff } from './github/client.js';
 import { buildContext } from './review/contextBuilder.js';
-import { reviewDiff } from './review/llmReviewer.js';
+// TEMP: swapped from './review/llmReviewer.js' (Claude) to test free via Groq.
+// To revert: import reviewDiff from llmReviewer.js again and change
+// PipelineDeps.groqApiKey back to anthropicClient: Anthropic.
+import { reviewDiff } from './review/llmReviewer.groq.js';
 import { postFindings } from './review/commentPoster.js';
 import { logMetrics } from './logger.js';
 import type { PullRequestEvent } from './webhook/parse.js';
 
 export interface PipelineDeps {
   getToken: () => Promise<string>;
-  anthropicClient: Anthropic;
+  groqApiKey: string;
 }
 
 export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineDeps): Promise<void> {
@@ -17,7 +19,7 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
   const token = await deps.getToken();
   const rawDiff = await getPullRequestDiff(token, event.owner, event.repo, event.prNumber);
   const context = buildContext(rawDiff);
-  const { findings, tokensUsed } = await reviewDiff(context, deps.anthropicClient);
+  const { findings, tokensUsed } = await reviewDiff(context, deps.groqApiKey);
 
   const { posted } = await postFindings({
     token,

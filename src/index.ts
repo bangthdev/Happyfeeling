@@ -1,4 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
+// TEMP: swapped from '@anthropic-ai/sdk' + anthropicClient to test free via Groq.
+// To revert: re-add `import Anthropic from '@anthropic-ai/sdk'`, construct
+// `anthropicClient`, and pass it instead of `groqApiKey` below.
 import { createServer } from './server.js';
 import { loadConfig } from './config.js';
 import { createInstallationTokenProvider } from './github/auth.js';
@@ -12,12 +14,10 @@ const tokenProvider = createInstallationTokenProvider(
   config.githubInstallationId
 );
 
-const anthropicClient = new Anthropic({ apiKey: config.anthropicApiKey });
-
 const app = createServer({
   webhookSecret: config.githubWebhookSecret,
   runPipeline: (event) =>
-    runReviewPipeline(event, { getToken: () => tokenProvider.getToken(), anthropicClient }),
+    runReviewPipeline(event, { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey }),
 });
 
 app.listen(config.port, () => {

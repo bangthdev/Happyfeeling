@@ -6,7 +6,9 @@ export interface AppConfig {
   githubPrivateKey: string;
   githubInstallationId: string;
   githubWebhookSecret: string;
-  anthropicApiKey: string;
+  // TEMP: swapped from anthropicApiKey to test free via Groq.
+  // To revert: rename back to anthropicApiKey and require ANTHROPIC_API_KEY.
+  groqApiKey: string;
 }
 
 const REQUIRED_ENV_VARS = [
@@ -14,7 +16,7 @@ const REQUIRED_ENV_VARS = [
   'GITHUB_PRIVATE_KEY',
   'GITHUB_INSTALLATION_ID',
   'GITHUB_WEBHOOK_SECRET',
-  'ANTHROPIC_API_KEY',
+  'GROQ_API_KEY',
 ] as const;
 
 export function loadConfig(): AppConfig {
@@ -29,6 +31,6 @@ export function loadConfig(): AppConfig {
     githubPrivateKey: process.env.GITHUB_PRIVATE_KEY!.replace(/\\n/g, '\n'),
     githubInstallationId: process.env.GITHUB_INSTALLATION_ID!,
     githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET!,
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY!,
+    groqApiKey: process.env.GROQ_API_KEY!,
   };
 }
