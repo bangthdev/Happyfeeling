@@ -22,7 +22,7 @@ interface SubIssueDef {
 const SUB_ISSUES: SubIssueDef[] = [
   {
     key: 'task1',
-    title: 'nhd98z/epic-1-pnpm-workspace-skeleton',
+    title: 'nhd98z2/epic-1-pnpm-workspace-skeleton',
     parentEpicTitle: 'Epic 1: Monorepo Scaffold',
     description:
       'Tạo `pnpm-workspace.yaml` và package `packages/config` (tsconfig base dùng chung cho các package sau này) — chưa đụng gì đang chạy (root package.json, src/ giữ nguyên).\n\nHoàn thành khi: `pnpm install` chạy được và `pnpm -r list --depth -1` thấy `@happyfeeling/config` trong workspace.\n\nChi tiết: `' +
@@ -33,7 +33,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'a1',
-    title: 'nhd98z/epic-1-cutover-src-to-packages-github',
+    title: 'nhd98z2/epic-1-cutover-src-to-packages-github',
     parentEpicTitle: 'Epic 1: Monorepo Scaffold',
     description:
       'Chuyển root sang pnpm (xoá package-lock.json, viết lại package.json root) và di chuyển `src/` hiện tại vào `packages/github` — giữ nguyên logic, chỉ thêm package.json/tsconfig riêng cho package.\n\nHoàn thành khi: `pnpm --filter @happyfeeling/github test` báo đủ 13 file / 38 test pass — đúng số lượng như trước khi chuyển.\n\nChi tiết: `' +
@@ -44,7 +44,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'a2',
-    title: 'nhd98z/epic-1-apps-web-empty-shell',
+    title: 'nhd98z2/epic-1-apps-web-empty-shell',
     parentEpicTitle: 'Epic 1: Monorepo Scaffold',
     description:
       'Dựng 1 app Next.js rỗng tại `apps/web` — chưa có logic thật, Epic 3 mới thêm route webhook/dashboard.\n\nHoàn thành khi: `pnpm --filter @happyfeeling/web build` build thành công.\n\nChi tiết: `' +
@@ -55,7 +55,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'a3',
-    title: 'nhd98z/epic-1-docker-compose',
+    title: 'nhd98z2/epic-1-docker-compose',
     parentEpicTitle: 'Epic 1: Monorepo Scaffold',
     description:
       'Viết `apps/web/Dockerfile` + `docker-compose.yml` (service postgres, redis, web — chưa thêm worker vì chưa có code worker tới Epic 3).\n\nHoàn thành khi: `docker compose up -d postgres redis` cả 2 lên `Up`, và `docker compose build web` build được.\n\nChi tiết: `' +
@@ -66,7 +66,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'b1',
-    title: 'nhd98z/epic-2-prisma-schema-scaffold',
+    title: 'nhd98z2/epic-2-prisma-schema-scaffold',
     parentEpicTitle: 'Epic 2: Database & Schema',
     description:
       'Scaffold package `packages/db` + viết Prisma schema cho 4 model: Finding, Metric, Config, Ticket.\n\nHoàn thành khi: `pnpm --filter @happyfeeling/db exec prisma validate` báo schema hợp lệ.\n\nChi tiết: `' +
@@ -77,7 +77,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'b2',
-    title: 'nhd98z/epic-2-migrate-local-postgres',
+    title: 'nhd98z2/epic-2-migrate-local-postgres',
     parentEpicTitle: 'Epic 2: Database & Schema',
     description:
       'Chạy 1 Postgres tạm ở local (`docker run`, độc lập với Compose của Track A) rồi tạo migration Prisma đầu tiên từ schema.\n\nHoàn thành khi: migration áp dụng thành công và 4 bảng (Finding/Metric/Config/Ticket) xuất hiện trong DB.\n\nChi tiết: `' +
@@ -88,7 +88,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'b3',
-    title: 'nhd98z/epic-2-seed-script',
+    title: 'nhd98z2/epic-2-seed-script',
     parentEpicTitle: 'Epic 2: Database & Schema',
     description:
       'Viết `client.ts` (PrismaClient singleton), `seed.ts` (seed dữ liệu mẫu) và 1 test xác nhận seed đúng.\n\nHoàn thành khi: test fail trước khi seed, và pass sau khi chạy seed.\n\nChi tiết: `' +
@@ -99,7 +99,7 @@ const SUB_ISSUES: SubIssueDef[] = [
   },
   {
     key: 'task5',
-    title: 'nhd98z/epic-1-2-integration-check',
+    title: 'nhd98z2/epic-1-2-integration-check',
     parentEpicTitle: 'Epic 2: Database & Schema',
     description:
       'Xác nhận Epic 1 (Docker) và Epic 2 (Prisma) chạy đúng cùng nhau — trỏ `packages/db` sang Postgres thật trong `docker-compose.yml` thay vì Postgres tạm, migrate + seed + test lại. Làm cuối cùng, sau khi cả Task A3 và B3 đã merge.\n\nHoàn thành khi: `pnpm -r test` toàn workspace pass hết (github 38, db 1) trên Postgres của Compose.\n\nChi tiết: `' +

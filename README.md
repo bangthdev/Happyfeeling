@@ -28,7 +28,10 @@ cp .env.example .env
 - `GITHUB_PRIVATE_KEY` — nội dung file `.pem` ở bước 7, giữ nguyên `\n` xuống dòng
 - `GITHUB_INSTALLATION_ID` — ở bước 8
 - `GITHUB_WEBHOOK_SECRET` — chuỗi bí mật ở bước 3
-- `ANTHROPIC_API_KEY` — API key Anthropic của bạn
+- `GROQ_API_KEY` — API key Groq của bạn (**TẠM THỜI** thay cho Claude/Anthropic để test free —
+  xem comment `// TEMP:` trong `src/config.ts`, `src/pipeline.ts`, `src/index.ts` để revert lại Claude)
+- `LINEAR_API_KEY` — chỉ cần nếu chạy script sync issue ở `scripts/` (Personal API Key, Linear
+  Settings > API), **không bắt buộc** để chạy bot chính
 
 ### 3. Chạy local + expose qua ngrok
 
@@ -56,3 +59,8 @@ kiểm tra file `logs/metrics.log`.
 ```bash
 npm test
 ```
+
+## CI
+
+Mọi Pull Request nhắm vào `main` tự chạy `npm test` + `npm run build` (type-check) qua
+GitHub Actions (`.github/workflows/ci.yml`) — cả 2 bước phải pass mới merge được.
