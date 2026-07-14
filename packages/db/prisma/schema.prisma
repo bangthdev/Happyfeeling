@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Finding {
+  id          String   @id @default(cuid())
+  repo        String
+  prNumber    Int
+  filePath    String
+  line        Int
+  errorType   String
+  message     String
+  dedupHash   String   @unique
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @updatedAt
+}
+
+model Metric {
+  id         String   @id @default(cuid())
+  name       String
+  value      Float
+  recordedAt DateTime @default(now())
+}
+
+model Config {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Ticket {
+  id        String   @id @default(cuid())
+  ticketId  String   @unique
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
