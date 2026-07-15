@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: happyfeeling
+      POSTGRES_PASSWORD: happyfeeling
+      POSTGRES_DB: happyfeeling
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres-data:
+
+# trigger local bot review
