@@ -5,18 +5,21 @@ export interface ReviewContext {
   files: string[];
 }
 
+export function splitDiffByFile(diff: string): string[] {
+  return diff.split(/(?=^diff --git )/m).filter(Boolean);
+}
+
+export function filePathOf(block: string): string {
+  const match = block.match(/^diff --git a\/(?:.+?) b\/(.+?)$/m);
+  return match ? match[1] : '';
+}
+
 export function buildContext(rawDiff: string): ReviewContext {
-  const fileBlocks = rawDiff.split(/(?=^diff --git )/m).filter(Boolean);
+  const fileBlocks = splitDiffByFile(rawDiff);
 
-  const kept = fileBlocks.filter((block) => {
-    const match = block.match(/^diff --git a\/(.+?) b\/(.+?)$/m);
-    const path = match ? match[2] : '';
-    return !IGNORED_PATH_PATTERNS.some((re) => re.test(path));
-  });
+  const kept = fileBlocks.filter((block) => !IGNORED_PATH_PATTERNS.some((re) => re.test(filePathOf(block))));
 
-  const files = kept
-    .map((block) => block.match(/^diff --git a\/(.+?) b\/(.+?)$/m)?.[2])
-    .filter((p): p is string => Boolean(p));
+  const files = kept.map(filePathOf).filter((path) => path !== '');
 
   return { diff: kept.join(''), files };
 }

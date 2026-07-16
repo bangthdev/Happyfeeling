@@ -33,7 +33,7 @@ describe('chunkDiff', () => {
     expect(chunks[0].diff + chunks[1].diff).toBe(diff);
   });
 
-  it('splits a single oversized file by hunk boundaries', () => {
+  it('splits a single oversized file by hunk boundaries, keeping the file header on every piece', () => {
     const hunk1 = '@@ -1,1 +1,3 @@\n+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n';
     const hunk2 = '@@ -10,1 +10,3 @@\n+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n';
     const header = 'diff --git a/big.ts b/big.ts\n';
@@ -44,7 +44,15 @@ describe('chunkDiff', () => {
 
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every((c: { files: string[] }) => c.files.includes('big.ts'))).toBe(true);
-    expect(chunks.map((c: { diff: string }) => c.diff).join('')).toBe(diff);
+    // every piece must carry its own file header, or the LLM has no idea which
+    // file a continuation hunk belongs to
+    for (const chunk of chunks) {
+      expect(chunk.diff.startsWith(header)).toBe(true);
+    }
+    // hunks themselves must survive undamaged and in order once the (now
+    // repeated) header is stripped back out
+    const hunksOnly = chunks.map((c: { diff: string }) => c.diff.slice(header.length)).join('');
+    expect(hunksOnly).toBe(hunk1 + hunk2);
   });
 
   it('keeps a single hunk that alone exceeds the budget as its own chunk instead of dropping content', () => {

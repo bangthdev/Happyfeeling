@@ -17,6 +17,17 @@ export type SleepFn = (ms: number) => Promise<void>;
 
 const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export class PartialReviewError extends Error {
+  constructor(
+    message: string,
+    public readonly partialResult: ReviewResult,
+    public readonly cause: unknown
+  ) {
+    super(message);
+    this.name = 'PartialReviewError';
+  }
+}
+
 const FINDINGS_TOOL = {
   type: 'function' as const,
   function: {
@@ -151,7 +162,16 @@ export async function reviewDiff(
   let tokensUsed = 0;
 
   for (let i = 0; i < chunks.length; i++) {
-    const result = await reviewChunk(chunks[i], apiKey, fetchFn, sleepFn);
+    let result: ReviewResult;
+    try {
+      result = await reviewChunk(chunks[i], apiKey, fetchFn, sleepFn);
+    } catch (err) {
+      throw new PartialReviewError(
+        `Groq review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
+        { findings, tokensUsed },
+        err
+      );
+    }
     findings.push(...result.findings);
     tokensUsed += result.tokensUsed;
 

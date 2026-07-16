@@ -1,14 +1,9 @@
-import type { ReviewContext } from './contextBuilder.js';
+import { splitDiffByFile, filePathOf, type ReviewContext } from './contextBuilder.js';
 
 const TOKEN_CHAR_RATIO = 4;
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / TOKEN_CHAR_RATIO);
-}
-
-function filePathOf(block: string): string {
-  const match = block.match(/^diff --git a\/(.+?) b\/(.+?)$/m);
-  return match ? match[2] : '';
 }
 
 function splitBlockByHunk(block: string, maxTokens: number): string[] {
@@ -19,21 +14,15 @@ function splitBlockByHunk(block: string, maxTokens: number): string[] {
   const hunks = block.slice(firstHunkIndex).split(/(?=^@@ )/m).filter(Boolean);
 
   const pieces: string[] = [];
-  let current = header;
-  let hasHunk = false;
+  let current = header + hunks[0];
 
-  for (const hunk of hunks) {
-    if (!hasHunk) {
-      current += hunk;
-      hasHunk = true;
-      continue;
-    }
+  for (const hunk of hunks.slice(1)) {
     const candidate = current + hunk;
     if (estimateTokens(candidate) <= maxTokens) {
       current = candidate;
     } else {
       pieces.push(current);
-      current = hunk;
+      current = header + hunk;
     }
   }
   pieces.push(current);
@@ -43,7 +32,7 @@ function splitBlockByHunk(block: string, maxTokens: number): string[] {
 export function chunkDiff(diff: string, maxTokens: number): ReviewContext[] {
   if (!diff) return [];
 
-  const blocks = diff.split(/(?=^diff --git )/m).filter(Boolean);
+  const blocks = splitDiffByFile(diff);
   const chunks: ReviewContext[] = [];
 
   let currentDiff = '';
