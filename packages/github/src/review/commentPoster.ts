@@ -21,21 +21,27 @@ export async function postFindings(
 ): Promise<PostFindingsResult> {
   const { token, owner, repo, prNumber, commitSha, findings } = params;
   const posted: Finding[] = [];
+  let skipped = 0;
 
   for (const finding of findings) {
-    await postFn({
-      token,
-      owner,
-      repo,
-      prNumber,
-      commitSha,
-      filePath: finding.file,
-      line: finding.line,
-      side: 'RIGHT',
-      body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
-    });
-    posted.push(finding);
+    try {
+      await postFn({
+        token,
+        owner,
+        repo,
+        prNumber,
+        commitSha,
+        filePath: finding.file,
+        line: finding.line,
+        side: 'RIGHT',
+        body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
+      });
+      posted.push(finding);
+    } catch (err) {
+      console.error('Failed to post finding comment:', err);
+      skipped += 1;
+    }
   }
 
-  return { posted, skipped: 0 };
+  return { posted, skipped };
 }
