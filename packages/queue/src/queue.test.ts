@@ -7,6 +7,7 @@ describe('createReviewQueue', () => {
 
   afterEach(async () => {
     await queue.obliterate({ force: true });
+    await queue.close();
   });
 
   it('applies defaultJobOptions with attempts: 3 and exponential backoff', async () => {
