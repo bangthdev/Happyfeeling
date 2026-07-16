@@ -1,6 +1,6 @@
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 
-export function createRedisConnection(): IORedis {
+export function createRedisConnection(): Redis {
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
-  return new IORedis(url, { maxRetriesPerRequest: null });
+  return new Redis(url, { maxRetriesPerRequest: null });
 }
