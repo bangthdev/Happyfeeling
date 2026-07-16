@@ -1,3 +1,10 @@
+export class GithubApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'GithubApiError';
+  }
+}
+
 export async function getPullRequestDiff(
   token: string,
   owner: string,
@@ -49,6 +56,6 @@ export async function postReviewComment(
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to post review comment: ${res.status} ${await res.text()}`);
+    throw new GithubApiError(`Failed to post review comment: ${res.status} ${await res.text()}`, res.status);
   }
 }

@@ -1,4 +1,4 @@
-import { postReviewComment } from '../github/client.js';
+import { postReviewComment, GithubApiError } from '../github/client.js';
 import type { Finding } from './llmReviewer.js';
 
 export interface PostFindingsParams {
@@ -14,6 +14,8 @@ export interface PostFindingsResult {
   posted: Finding[];
   skipped: number;
 }
+
+const UNPROCESSABLE_ENTITY = 422;
 
 export async function postFindings(
   params: PostFindingsParams,
@@ -38,8 +40,12 @@ export async function postFindings(
       });
       posted.push(finding);
     } catch (err) {
-      console.error('Failed to post finding comment:', err);
-      skipped += 1;
+      if (err instanceof GithubApiError && err.status === UNPROCESSABLE_ENTITY) {
+        console.error('Skipping finding — line is outside the PR diff:', err);
+        skipped += 1;
+        continue;
+      }
+      throw err;
     }
   }
 

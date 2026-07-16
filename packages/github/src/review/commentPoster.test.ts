@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { postFindings } from './commentPoster.js';
+import { GithubApiError } from '../github/client.js';
 import type { Finding } from './llmReviewer.js';
 
 describe('postFindings', () => {
@@ -27,11 +28,11 @@ describe('postFindings', () => {
     );
   });
 
-  it('skips a finding whose comment post fails and keeps posting the rest', async () => {
+  it('skips a finding whose line falls outside the diff (422) and keeps posting the rest', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const postFn = vi
       .fn()
-      .mockRejectedValueOnce(new Error('422 Unprocessable Entity'))
+      .mockRejectedValueOnce(new GithubApiError('Failed to post review comment: 422 Unprocessable Entity', 422))
       .mockResolvedValueOnce(undefined);
     const findings: Finding[] = [
       { file: 'src/foo.ts', line: 999, severity: 'high', message: 'off-diff line', suggestion: 'n/a' },
@@ -48,5 +49,19 @@ describe('postFindings', () => {
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('re-throws a non-422 failure instead of silently skipping it', async () => {
+    const postFn = vi
+      .fn()
+      .mockRejectedValueOnce(new GithubApiError('Failed to post review comment: 401 Bad credentials', 401));
+    const findings: Finding[] = [{ file: 'src/foo.ts', line: 3, severity: 'high', message: 'bug', suggestion: 'fix' }];
+
+    await expect(
+      postFindings(
+        { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
+        postFn
+      )
+    ).rejects.toThrow('401');
   });
 });
