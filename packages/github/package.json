@@ -5,12 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./webhook/verify": "./dist/webhook/verify.js",
-    "./webhook/parse": "./dist/webhook/parse.js",
-    "./pipeline": "./dist/pipeline.js",
-    "./github/auth": "./dist/github/auth.js",
-    "./config": "./dist/config.js",
-    "./logger": "./dist/logger.js"
+    "./*": "./dist/*.js"
   },
   "engines": { "node": ">=18" },
   "scripts": {
