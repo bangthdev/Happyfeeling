@@ -27,7 +27,10 @@ describe('runReviewPipeline', () => {
       findings: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
       tokensUsed: 300,
     });
-    vi.mocked(postFindings).mockResolvedValue({ posted: 1, skipped: 0 });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
+      skipped: 0,
+    });
 
     const getToken = vi.fn().mockResolvedValue('tok');
 
