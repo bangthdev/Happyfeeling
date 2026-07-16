@@ -166,6 +166,11 @@ export async function reviewDiff(
     try {
       result = await reviewChunk(chunks[i], apiKey, fetchFn, sleepFn);
     } catch (err) {
+      // No chunk has succeeded yet — this is a total failure, not a partial
+      // one. Re-throw as-is instead of wrapping it, so callers don't mistake
+      // "review never ran" for "review ran and found nothing" (the exact bug
+      // this file was written to fix, just for a different trigger).
+      if (i === 0) throw err;
       throw new PartialReviewError(
         `Groq review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
         { findings, tokensUsed },

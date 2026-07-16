@@ -76,16 +76,13 @@ describe('reviewDiff (Groq)', () => {
     expect(callCount).toBe(2);
   });
 
-  it('throws a PartialReviewError whose cause carries the underlying HTTP error when the response is not ok', async () => {
+  it('re-throws the original error, not PartialReviewError, when the very first chunk fails', async () => {
     const fetchFn = fakeFetch(async () => ({ ok: false, status: 401, text: async () => 'invalid key' }));
 
     const promise = reviewDiff({ diff: 'diff...', files: [] }, 'bad-key', fetchFn);
 
-    await expect(promise).rejects.toBeInstanceOf(PartialReviewError);
-    await expect(promise).rejects.toMatchObject({
-      partialResult: { findings: [], tokensUsed: 0 },
-      cause: expect.objectContaining({ message: expect.stringContaining('401') }),
-    });
+    await expect(promise).rejects.not.toBeInstanceOf(PartialReviewError);
+    await expect(promise).rejects.toThrow('401');
   });
 
   it('splits an oversized diff into multiple Groq calls, merges findings, sums tokens, and delays between calls', async () => {
