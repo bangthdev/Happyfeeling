@@ -33,7 +33,21 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
-  packages/config: {}
+  packages/config:
+    dependencies:
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
 
   packages/db:
     dependencies:
@@ -68,9 +82,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.32.0
         version: 0.32.1
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
+      '@happyfeeling/config':
+        specifier: workspace:*
+        version: link:../config
       express:
         specifier: ^4.19.2
         version: 4.22.2
@@ -105,6 +119,9 @@ importers:
 
   packages/queue:
     dependencies:
+      '@happyfeeling/config':
+        specifier: workspace:*
+        version: link:../config
       bullmq:
         specifier: ^5.80.5
         version: 5.80.5

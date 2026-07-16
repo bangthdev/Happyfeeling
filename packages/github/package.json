@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
-    "dotenv": "^16.4.5",
+    "@happyfeeling/config": "workspace:*",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2"
   },

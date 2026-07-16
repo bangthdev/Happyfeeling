@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@happyfeeling/config": "workspace:*",
     "bullmq": "^5.80.5",
     "ioredis": "^5.11.1"
   },
