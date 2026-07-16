@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getPullRequestDiff, postReviewComment } from './client.js';
+import { getPullRequestDiff, postReviewComment, GithubApiError } from './client.js';
 
 describe('getPullRequestDiff', () => {
   it('requests the diff with the correct headers and returns the text', async () => {
@@ -36,7 +36,7 @@ describe('getPullRequestDiff', () => {
 });
 
 describe('postReviewComment', () => {
-  it('posts a comment with the correct body', async () => {
+  it('posts a comment with line and side', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
 
     await postReviewComment(
@@ -47,7 +47,8 @@ describe('postReviewComment', () => {
         prNumber: 42,
         commitSha: 'abc123',
         filePath: 'src/x.ts',
-        position: 4,
+        line: 4,
+        side: 'RIGHT',
         body: 'nice catch',
       },
       fetchFn as unknown as typeof fetch
@@ -57,28 +58,30 @@ describe('postReviewComment', () => {
       'https://api.github.com/repos/acme/widgets/pulls/42/comments',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ commit_id: 'abc123', path: 'src/x.ts', position: 4, body: 'nice catch' }),
+        body: JSON.stringify({ commit_id: 'abc123', path: 'src/x.ts', line: 4, side: 'RIGHT', body: 'nice catch' }),
       })
     );
   });
 
-  it('throws when the response is not ok', async () => {
+  it('throws a GithubApiError carrying the response status when the response is not ok', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 403, text: () => Promise.resolve('rate limited') });
 
-    await expect(
-      postReviewComment(
-        {
-          token: 'tok',
-          owner: 'acme',
-          repo: 'widgets',
-          prNumber: 42,
-          commitSha: 'abc123',
-          filePath: 'src/x.ts',
-          position: 4,
-          body: 'nice catch',
-        },
-        fetchFn as unknown as typeof fetch
-      )
-    ).rejects.toThrow('403');
+    const promise = postReviewComment(
+      {
+        token: 'tok',
+        owner: 'acme',
+        repo: 'widgets',
+        prNumber: 42,
+        commitSha: 'abc123',
+        filePath: 'src/x.ts',
+        line: 4,
+        side: 'RIGHT',
+        body: 'nice catch',
+      },
+      fetchFn as unknown as typeof fetch
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(GithubApiError);
+    await expect(promise).rejects.toMatchObject({ status: 403 });
   });
 });

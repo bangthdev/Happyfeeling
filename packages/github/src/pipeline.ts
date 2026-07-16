@@ -27,7 +27,6 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
     repo: event.repo,
     prNumber: event.prNumber,
     commitSha: event.headSha,
-    diff: context.diff,
     findings,
   });
 
@@ -38,7 +37,7 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
 
   logMetrics({
     pr_number: event.prNumber,
-    findings_count: posted,
+    findings_count: posted.length,
     severity_breakdown: severityBreakdown,
     latency_ms: Date.now() - start,
     tokens_used: tokensUsed,

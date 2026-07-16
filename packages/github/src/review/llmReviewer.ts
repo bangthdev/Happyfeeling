@@ -3,6 +3,7 @@ import type { ReviewContext } from './contextBuilder.js';
 
 export interface Finding {
   file: string;
+  /** Line number in the new (post-diff) version of the file — never a deleted line. commentPoster.ts relies on this to always post comments on the diff's RIGHT side. */
   line: number;
   severity: 'high' | 'medium' | 'low';
   message: string;

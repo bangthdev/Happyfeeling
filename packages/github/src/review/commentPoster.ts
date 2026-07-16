@@ -1,5 +1,4 @@
-import { mapLineToDiffPosition } from '../github/diffPosition.js';
-import { postReviewComment } from '../github/client.js';
+import { postReviewComment, GithubApiError } from '../github/client.js';
 import type { Finding } from './llmReviewer.js';
 
 export interface PostFindingsParams {
@@ -8,41 +7,46 @@ export interface PostFindingsParams {
   repo: string;
   prNumber: number;
   commitSha: string;
-  diff: string;
   findings: Finding[];
 }
 
 export interface PostFindingsResult {
-  posted: number;
+  posted: Finding[];
   skipped: number;
 }
+
+const UNPROCESSABLE_ENTITY = 422;
 
 export async function postFindings(
   params: PostFindingsParams,
   postFn: typeof postReviewComment = postReviewComment
 ): Promise<PostFindingsResult> {
-  const { token, owner, repo, prNumber, commitSha, diff, findings } = params;
-  let posted = 0;
+  const { token, owner, repo, prNumber, commitSha, findings } = params;
+  const posted: Finding[] = [];
   let skipped = 0;
 
   for (const finding of findings) {
-    const position = mapLineToDiffPosition(diff, finding.file, finding.line);
-    if (position === null) {
-      skipped += 1;
-      continue;
+    try {
+      await postFn({
+        token,
+        owner,
+        repo,
+        prNumber,
+        commitSha,
+        filePath: finding.file,
+        line: finding.line,
+        side: 'RIGHT',
+        body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
+      });
+      posted.push(finding);
+    } catch (err) {
+      if (err instanceof GithubApiError && err.status === UNPROCESSABLE_ENTITY) {
+        console.error('Skipping finding — line is outside the PR diff:', err);
+        skipped += 1;
+      } else {
+        throw err;
+      }
     }
-
-    await postFn({
-      token,
-      owner,
-      repo,
-      prNumber,
-      commitSha,
-      filePath: finding.file,
-      position,
-      body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
-    });
-    posted += 1;
   }
 
   return { posted, skipped };
