@@ -16,7 +16,7 @@ describe('postFindings', () => {
       postFn
     );
 
-    expect(result).toEqual({ posted: findings, skipped: 0 });
+    expect(result).toEqual({ posted: findings, skipped: 0, failed: [] });
     expect(postFn).toHaveBeenCalledTimes(2);
     expect(postFn).toHaveBeenNthCalledWith(
       1,
@@ -44,24 +44,33 @@ describe('postFindings', () => {
       postFn
     );
 
-    expect(result).toEqual({ posted: [findings[1]], skipped: 1 });
+    expect(result).toEqual({ posted: [findings[1]], skipped: 1, failed: [] });
     expect(postFn).toHaveBeenCalledTimes(2);
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
 
     consoleErrorSpy.mockRestore();
   });
 
-  it('re-throws a non-422 failure instead of silently skipping it', async () => {
+  it('collects a non-422 failure without losing findings already posted', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const postFn = vi
       .fn()
+      .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new GithubApiError('Failed to post review comment: 401 Bad credentials', 401));
-    const findings: Finding[] = [{ file: 'src/foo.ts', line: 3, severity: 'high', message: 'bug', suggestion: 'fix' }];
+    const findings: Finding[] = [
+      { file: 'src/foo.ts', line: 3, severity: 'high', message: 'bug', suggestion: 'fix' },
+      { file: 'src/foo.ts', line: 10, severity: 'low', message: 'nit', suggestion: 'n/a' },
+    ];
 
-    await expect(
-      postFindings(
-        { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
-        postFn
-      )
-    ).rejects.toThrow('401');
+    const result = await postFindings(
+      { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
+      postFn
+    );
+
+    expect(result).toEqual({ posted: [findings[0]], skipped: 0, failed: [findings[1]] });
+    expect(postFn).toHaveBeenCalledTimes(2);
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
   });
 });

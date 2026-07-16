@@ -13,6 +13,7 @@ export interface PostFindingsParams {
 export interface PostFindingsResult {
   posted: Finding[];
   skipped: number;
+  failed: Finding[];
 }
 
 const UNPROCESSABLE_ENTITY = 422;
@@ -23,6 +24,7 @@ export async function postFindings(
 ): Promise<PostFindingsResult> {
   const { token, owner, repo, prNumber, commitSha, findings } = params;
   const posted: Finding[] = [];
+  const failed: Finding[] = [];
   let skipped = 0;
 
   for (const finding of findings) {
@@ -44,10 +46,11 @@ export async function postFindings(
         console.error('Skipping finding — line is outside the PR diff:', err);
         skipped += 1;
       } else {
-        throw err;
+        console.error('Failed to post finding comment:', err);
+        failed.push(finding);
       }
     }
   }
 
-  return { posted, skipped };
+  return { posted, skipped, failed };
 }
