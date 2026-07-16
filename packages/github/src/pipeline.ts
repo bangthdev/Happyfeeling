@@ -44,6 +44,7 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
   });
 
   if (failed.length > 0) {
-    throw new Error(`Failed to post ${failed.length} of ${findings.length} finding(s) for PR #${event.prNumber}`);
+    const attempted = posted.length + failed.length;
+    throw new Error(`Failed to post ${failed.length} of ${attempted} finding(s) for PR #${event.prNumber}`);
   }
 }
