@@ -36,7 +36,7 @@ describe('getPullRequestDiff', () => {
 });
 
 describe('postReviewComment', () => {
-  it('posts a comment with the correct body', async () => {
+  it('posts a comment with line and side', async () => {
     const fetchFn = vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
 
     await postReviewComment(
@@ -47,7 +47,8 @@ describe('postReviewComment', () => {
         prNumber: 42,
         commitSha: 'abc123',
         filePath: 'src/x.ts',
-        position: 4,
+        line: 4,
+        side: 'RIGHT',
         body: 'nice catch',
       },
       fetchFn as unknown as typeof fetch
@@ -57,7 +58,7 @@ describe('postReviewComment', () => {
       'https://api.github.com/repos/acme/widgets/pulls/42/comments',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ commit_id: 'abc123', path: 'src/x.ts', position: 4, body: 'nice catch' }),
+        body: JSON.stringify({ commit_id: 'abc123', path: 'src/x.ts', line: 4, side: 'RIGHT', body: 'nice catch' }),
       })
     );
   });
@@ -74,7 +75,8 @@ describe('postReviewComment', () => {
           prNumber: 42,
           commitSha: 'abc123',
           filePath: 'src/x.ts',
-          position: 4,
+          line: 4,
+          side: 'RIGHT',
           body: 'nice catch',
         },
         fetchFn as unknown as typeof fetch

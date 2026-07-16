@@ -27,7 +27,8 @@ export interface PostCommentParams {
   prNumber: number;
   commitSha: string;
   filePath: string;
-  position: number;
+  line: number;
+  side: 'LEFT' | 'RIGHT';
   body: string;
 }
 
@@ -35,7 +36,7 @@ export async function postReviewComment(
   params: PostCommentParams,
   fetchFn: typeof fetch = fetch
 ): Promise<void> {
-  const { token, owner, repo, prNumber, commitSha, filePath, position, body } = params;
+  const { token, owner, repo, prNumber, commitSha, filePath, line, side, body } = params;
 
   const res = await fetchFn(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/comments`, {
     method: 'POST',
@@ -44,7 +45,7 @@ export async function postReviewComment(
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     },
-    body: JSON.stringify({ commit_id: commitSha, path: filePath, position, body }),
+    body: JSON.stringify({ commit_id: commitSha, path: filePath, line, side, body }),
   });
 
   if (!res.ok) {
