@@ -1,8 +1,32 @@
 import type { ReviewContext } from './contextBuilder.js';
 import type { Finding, ReviewResult } from './llmReviewer.js';
+import { chunkDiff } from './diffChunker.js';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// Groq's TPM limit is 12k; budget half of it per chunk to leave room for the
+// prompt template and the model's response within the same per-minute window.
+const MAX_TOKENS_PER_CHUNK = 6000;
+// Spacing between chunk calls so consecutive chunks don't land in the same
+// rate-limit window and re-trigger a 429.
+const CHUNK_DELAY_MS = 3000;
+const DEFAULT_RATE_LIMIT_RETRY_MS = 5000;
+const MAX_RATE_LIMIT_RETRIES = 3;
+
+export type SleepFn = (ms: number) => Promise<void>;
+
+const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export class PartialReviewError extends Error {
+  constructor(
+    message: string,
+    public readonly partialResult: ReviewResult,
+    public readonly cause: unknown
+  ) {
+    super(message);
+    this.name = 'PartialReviewError';
+  }
+}
 
 const FINDINGS_TOOL = {
   type: 'function' as const,
@@ -62,7 +86,9 @@ function parseFindings(response: GroqResponse): Finding[] {
 async function callGroq(
   apiKey: string,
   messages: GroqMessage[],
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
+  sleepFn: SleepFn,
+  retriesLeft = MAX_RATE_LIMIT_RETRIES
 ): Promise<GroqResponse> {
   const res = await fetchFn(GROQ_API_URL, {
     method: 'POST',
@@ -78,20 +104,29 @@ async function callGroq(
     }),
   });
 
+  if (res.status === 429 && retriesLeft > 0) {
+    const retryAfterHeader = res.headers?.get?.('retry-after');
+    const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+    const delayMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : DEFAULT_RATE_LIMIT_RETRY_MS;
+    await sleepFn(delayMs);
+    return callGroq(apiKey, messages, fetchFn, sleepFn, retriesLeft - 1);
+  }
+
   if (!res.ok) {
     throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
   }
   return res.json() as Promise<GroqResponse>;
 }
 
-export async function reviewDiff(
+async function reviewChunk(
   context: ReviewContext,
   apiKey: string,
-  fetchFn: typeof fetch = fetch
+  fetchFn: typeof fetch,
+  sleepFn: SleepFn
 ): Promise<ReviewResult> {
   const messages: GroqMessage[] = [{ role: 'user', content: buildPrompt(context) }];
 
-  const response = await callGroq(apiKey, messages, fetchFn);
+  const response = await callGroq(apiKey, messages, fetchFn, sleepFn);
   const tokensUsed = response.usage.prompt_tokens + response.usage.completion_tokens;
 
   try {
@@ -108,8 +143,47 @@ export async function reviewDiff(
         content: 'Kết quả không đúng format yêu cầu. Hãy gọi lại tool submit_findings với đúng schema.',
       },
     ];
-    const retryResponse = await callGroq(apiKey, retryMessages, fetchFn);
+    const retryResponse = await callGroq(apiKey, retryMessages, fetchFn, sleepFn);
     const retryTokensUsed = tokensUsed + retryResponse.usage.prompt_tokens + retryResponse.usage.completion_tokens;
     return { findings: parseFindings(retryResponse), tokensUsed: retryTokensUsed };
   }
+}
+
+export async function reviewDiff(
+  context: ReviewContext,
+  apiKey: string,
+  fetchFn: typeof fetch = fetch,
+  sleepFn: SleepFn = defaultSleep
+): Promise<ReviewResult> {
+  const chunks = chunkDiff(context.diff, MAX_TOKENS_PER_CHUNK);
+  if (chunks.length === 0) return { findings: [], tokensUsed: 0 };
+
+  const findings: Finding[] = [];
+  let tokensUsed = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    let result: ReviewResult;
+    try {
+      result = await reviewChunk(chunks[i], apiKey, fetchFn, sleepFn);
+    } catch (err) {
+      // No chunk has succeeded yet — this is a total failure, not a partial
+      // one. Re-throw as-is instead of wrapping it, so callers don't mistake
+      // "review never ran" for "review ran and found nothing" (the exact bug
+      // this file was written to fix, just for a different trigger).
+      if (i === 0) throw err;
+      throw new PartialReviewError(
+        `Groq review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
+        { findings, tokensUsed },
+        err
+      );
+    }
+    findings.push(...result.findings);
+    tokensUsed += result.tokensUsed;
+
+    if (i < chunks.length - 1) {
+      await sleepFn(CHUNK_DELAY_MS);
+    }
+  }
+
+  return { findings, tokensUsed };
 }

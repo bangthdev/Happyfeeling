@@ -1,18 +1,25 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PullRequestEvent } from './webhook/parse.js';
 
 vi.mock('./github/client.js', () => ({ getPullRequestDiff: vi.fn() }));
 vi.mock('./review/commentPoster.js', () => ({ postFindings: vi.fn() }));
-vi.mock('./review/llmReviewer.groq.js', () => ({ reviewDiff: vi.fn() }));
+vi.mock('./review/llmReviewer.groq.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./review/llmReviewer.groq.js')>();
+  return { ...actual, reviewDiff: vi.fn() };
+});
 vi.mock('./logger.js', () => ({ logMetrics: vi.fn() }));
 
 import { getPullRequestDiff } from './github/client.js';
 import { postFindings } from './review/commentPoster.js';
-import { reviewDiff } from './review/llmReviewer.groq.js';
+import { reviewDiff, PartialReviewError } from './review/llmReviewer.groq.js';
 import { logMetrics } from './logger.js';
 import { runReviewPipeline } from './pipeline.js';
 
 describe('runReviewPipeline', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('orchestrates diff fetch, review, comment posting, and metrics logging', async () => {
     const event: PullRequestEvent = {
       owner: 'acme',
@@ -78,5 +85,61 @@ describe('runReviewPipeline', () => {
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ pr_number: 9, findings_count: 1, tokens_used: 500 })
     );
+  });
+
+  it('still posts and logs the findings collected before a partial review failure', async () => {
+    const event: PullRequestEvent = {
+      owner: 'acme',
+      repo: 'widgets',
+      prNumber: 7,
+      headSha: 'sha1',
+      action: 'opened',
+    };
+    const partialFindings = [
+      { file: 'src/x.ts', line: 1, severity: 'high' as const, message: 'm', suggestion: 's' },
+    ];
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue('diff --git a/src/x.ts b/src/x.ts\n...');
+    vi.mocked(reviewDiff).mockRejectedValue(
+      new PartialReviewError(
+        'Groq review failed on chunk 2/3',
+        { findings: partialFindings, tokensUsed: 150 },
+        new Error('401')
+      )
+    );
+    vi.mocked(postFindings).mockResolvedValue({ posted: partialFindings, skipped: 0, failed: [] });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const getToken = vi.fn().mockResolvedValue('tok');
+
+    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+
+    expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: partialFindings }));
+    expect(logMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ pr_number: 7, findings_count: 1, tokens_used: 150 })
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('re-throws non-PartialReviewError failures from reviewDiff without posting anything', async () => {
+    const event: PullRequestEvent = {
+      owner: 'acme',
+      repo: 'widgets',
+      prNumber: 7,
+      headSha: 'sha1',
+      action: 'opened',
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue('diff --git a/src/x.ts b/src/x.ts\n...');
+    vi.mocked(reviewDiff).mockRejectedValue(new Error('network down'));
+
+    const getToken = vi.fn().mockResolvedValue('tok');
+
+    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toThrow(
+      'network down'
+    );
+    expect(postFindings).not.toHaveBeenCalled();
   });
 });
