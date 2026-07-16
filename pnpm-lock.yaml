@@ -10,6 +10,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@happyfeeling/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@happyfeeling/github':
+        specifier: workspace:*
+        version: link:../../packages/github
+      '@happyfeeling/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       next:
         specifier: ^14.2.5
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -29,9 +38,15 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.31)
+      bullmq:
+        specifier: ^5.80.5
+        version: 5.80.5
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
 
   packages/config:
     dependencies:
