@@ -43,9 +43,9 @@ export async function postFindings(
       if (err instanceof GithubApiError && err.status === UNPROCESSABLE_ENTITY) {
         console.error('Skipping finding — line is outside the PR diff:', err);
         skipped += 1;
-        continue;
+      } else {
+        throw err;
       }
-      throw err;
     }
   }
 
