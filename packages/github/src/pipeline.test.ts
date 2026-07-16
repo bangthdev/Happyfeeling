@@ -30,6 +30,7 @@ describe('runReviewPipeline', () => {
     vi.mocked(postFindings).mockResolvedValue({
       posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
       skipped: 0,
+      failed: [],
     });
 
     const getToken = vi.fn().mockResolvedValue('tok');
@@ -42,6 +43,40 @@ describe('runReviewPipeline', () => {
     );
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ pr_number: 7, findings_count: 1, tokens_used: 300, severity_breakdown: { high: 1 } })
+    );
+  });
+
+  it('logs metrics for findings actually posted, then throws, when some posts fail', async () => {
+    const event: PullRequestEvent = {
+      owner: 'acme',
+      repo: 'widgets',
+      prNumber: 9,
+      headSha: 'sha2',
+      action: 'opened',
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue('diff --git a/src/y.ts b/src/y.ts\n...');
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: [
+        { file: 'src/y.ts', line: 1, severity: 'high', message: 'm1', suggestion: 's1' },
+        { file: 'src/y.ts', line: 2, severity: 'low', message: 'm2', suggestion: 's2' },
+      ],
+      tokensUsed: 500,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [{ file: 'src/y.ts', line: 1, severity: 'high', message: 'm1', suggestion: 's1' }],
+      skipped: 0,
+      failed: [{ file: 'src/y.ts', line: 2, severity: 'low', message: 'm2', suggestion: 's2' }],
+    });
+
+    const getToken = vi.fn().mockResolvedValue('tok');
+
+    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toThrow(
+      'Failed to post 1 of 2 finding(s)'
+    );
+
+    expect(logMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ pr_number: 9, findings_count: 1, tokens_used: 500 })
     );
   });
 });

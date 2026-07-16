@@ -21,7 +21,7 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
   const context = buildContext(rawDiff);
   const { findings, tokensUsed } = await reviewDiff(context, deps.groqApiKey);
 
-  const { posted } = await postFindings({
+  const { posted, failed } = await postFindings({
     token,
     owner: event.owner,
     repo: event.repo,
@@ -42,4 +42,9 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
     latency_ms: Date.now() - start,
     tokens_used: tokensUsed,
   });
+
+  if (failed.length > 0) {
+    const attempted = posted.length + failed.length;
+    throw new Error(`Failed to post ${failed.length} of ${attempted} finding(s) for PR #${event.prNumber}`);
+  }
 }
