@@ -3,16 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./webhook/verify": "./dist/webhook/verify.js",
+    "./webhook/parse": "./dist/webhook/parse.js",
+    "./pipeline": "./dist/pipeline.js",
+    "./github/auth": "./dist/github/auth.js",
+    "./config": "./dist/config.js",
+    "./logger": "./dist/logger.js"
+  },
   "engines": { "node": ">=18" },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "pretest": "pnpm --filter @happyfeeling/config build",
     "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
-    "dotenv": "^16.4.5",
+    "@happyfeeling/config": "workspace:*",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2"
   },

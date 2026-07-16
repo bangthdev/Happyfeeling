@@ -21,6 +21,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://happyfeeling:happyfeeling@localhost:5432/happyfeeling?schema=public
     steps:
@@ -34,8 +43,8 @@ jobs:
       - run: pnpm --filter @happyfeeling/db exec prisma generate
       - run: pnpm --filter @happyfeeling/db exec prisma migrate deploy
       - run: pnpm --filter @happyfeeling/db run seed
-      - run: pnpm -r test
       - run: pnpm -r build
+      - run: pnpm -r test
 
   db:
     runs-on: ubuntu-latest
