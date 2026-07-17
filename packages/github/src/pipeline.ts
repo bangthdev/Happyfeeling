@@ -9,12 +9,18 @@ import { postFindings } from './review/commentPoster.js';
 import { logMetrics } from './logger.js';
 import type { PullRequestEvent } from './webhook/parse.js';
 
+export type { Finding };
+
 export interface PipelineDeps {
   getToken: () => Promise<string>;
   groqApiKey: string;
 }
 
-export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineDeps): Promise<void> {
+export interface PipelineResult {
+  posted: Finding[];
+}
+
+export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineDeps): Promise<PipelineResult> {
   const start = Date.now();
 
   const token = await deps.getToken();
@@ -60,4 +66,6 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
     const attempted = posted.length + failed.length;
     throw new Error(`Failed to post ${failed.length} of ${attempted} finding(s) for PR #${event.prNumber}`);
   }
+
+  return { posted };
 }

@@ -4,7 +4,7 @@ import { parsePullRequestEvent, type PullRequestEvent } from './webhook/parse.js
 
 export interface ServerConfig {
   webhookSecret: string;
-  runPipeline?: (event: PullRequestEvent) => Promise<void>;
+  runPipeline?: (event: PullRequestEvent) => Promise<unknown>;
 }
 
 export function createServer(config: ServerConfig): express.Express {

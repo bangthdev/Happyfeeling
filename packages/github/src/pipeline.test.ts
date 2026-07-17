@@ -42,8 +42,11 @@ describe('runReviewPipeline', () => {
 
     const getToken = vi.fn().mockResolvedValue('tok');
 
-    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
 
+    expect(result).toEqual({
+      posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
+    });
     expect(getPullRequestDiff).toHaveBeenCalledWith('tok', 'acme', 'widgets', 7);
     expect(postFindings).toHaveBeenCalledWith(
       expect.objectContaining({ owner: 'acme', repo: 'widgets', prNumber: 7, commitSha: 'sha1' })
@@ -112,8 +115,9 @@ describe('runReviewPipeline', () => {
 
     const getToken = vi.fn().mockResolvedValue('tok');
 
-    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
 
+    expect(result).toEqual({ posted: partialFindings });
     expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: partialFindings }));
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ pr_number: 7, findings_count: 1, tokens_used: 150 })
