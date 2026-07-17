@@ -61,4 +61,11 @@ describe('POST /api/webhook', () => {
     const jobs = await reviewQueue.getWaiting();
     expect(jobs[0].data).toEqual({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' });
   });
+
+  it('does not enqueue a duplicate job when the same webhook is redelivered', async () => {
+    await POST(makeRequest(PR_OPENED_PAYLOAD, sign(PR_OPENED_PAYLOAD))); // lần 1
+    await POST(makeRequest(PR_OPENED_PAYLOAD, sign(PR_OPENED_PAYLOAD))); // lần 2 — GitHub "redeliver"
+
+    expect(await reviewQueue.getWaitingCount()).toBe(1);
+  });
 });
