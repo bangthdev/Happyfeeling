@@ -28,6 +28,22 @@ services:
       - postgres
       - redis
 
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
+      REDIS_URL: redis://redis:6379
+      GITHUB_APP_ID: ${GITHUB_APP_ID}
+      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}
+      GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
   postgres-data:
 
