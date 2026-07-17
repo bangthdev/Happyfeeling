@@ -10,7 +10,8 @@
     "./pipeline": "./dist/pipeline.js",
     "./github/auth": "./dist/github/auth.js",
     "./config": "./dist/config.js",
-    "./logger": "./dist/logger.js"
+    "./logger": "./dist/logger.js",
+    "./review/dedup": "./dist/review/dedup.js"
   },
   "engines": { "node": ">=18" },
   "scripts": {
