@@ -1,4 +1,7 @@
-import "dotenv/config";
+import { loadRootEnv } from "@happyfeeling/config";
+
+loadRootEnv(import.meta.url);
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
 
