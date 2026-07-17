@@ -18,12 +18,17 @@ export async function POST(req: Request): Promise<Response> {
     return new Response('ignored', { status: 200 });
   }
 
-  await reviewQueue.add(REVIEW_QUEUE_NAME, {
-    owner: event.owner,
-    repo: event.repo,
-    prNumber: event.prNumber,
-    headSha: event.headSha,
-  });
+  const jobId = `${event.owner}/${event.repo}#${event.prNumber}@${event.headSha}`;
+  await reviewQueue.add(
+    REVIEW_QUEUE_NAME,
+    {
+      owner: event.owner,
+      repo: event.repo,
+      prNumber: event.prNumber,
+      headSha: event.headSha,
+    },
+    { jobId },
+  );
 
   return new Response('accepted', { status: 202 });
 }
