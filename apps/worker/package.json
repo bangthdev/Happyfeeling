@@ -1,0 +1,26 @@
+{
+  "name": "@happyfeeling/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "pretest": "pnpm --filter @happyfeeling/config build && pnpm --filter @happyfeeling/queue build && pnpm --filter @happyfeeling/db build && pnpm --filter @happyfeeling/github build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@happyfeeling/config": "workspace:*",
+    "@happyfeeling/db": "workspace:*",
+    "@happyfeeling/github": "workspace:*",
+    "@happyfeeling/queue": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "bullmq": "^5.80.5",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
