@@ -6,7 +6,7 @@ WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @happyfeeling/db exec prisma generate
-RUN pnpm -r build
+RUN pnpm --filter "@happyfeeling/worker..." build
 
 FROM node:20-alpine AS runner
 RUN corepack enable

@@ -56,7 +56,7 @@ describe('runReviewPipeline', () => {
     );
   });
 
-  it('logs metrics for findings actually posted, then throws, when some posts fail', async () => {
+  it('logs metrics for findings actually posted, then throws a PartialPostError carrying them, when some posts fail', async () => {
     const event: PullRequestEvent = {
       owner: 'acme',
       repo: 'widgets',
@@ -73,17 +73,20 @@ describe('runReviewPipeline', () => {
       ],
       tokensUsed: 500,
     });
+    const posted = [{ file: 'src/y.ts', line: 1, severity: 'high' as const, message: 'm1', suggestion: 's1' }];
     vi.mocked(postFindings).mockResolvedValue({
-      posted: [{ file: 'src/y.ts', line: 1, severity: 'high', message: 'm1', suggestion: 's1' }],
+      posted,
       skipped: 0,
       failed: [{ file: 'src/y.ts', line: 2, severity: 'low', message: 'm2', suggestion: 's2' }],
     });
 
     const getToken = vi.fn().mockResolvedValue('tok');
 
-    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toThrow(
-      'Failed to post 1 of 2 finding(s)'
-    );
+    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toMatchObject({
+      name: 'PartialPostError',
+      message: expect.stringContaining('Failed to post 1 of 2 finding(s)'),
+      posted,
+    });
 
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ pr_number: 9, findings_count: 1, tokens_used: 500 })
