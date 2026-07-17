@@ -40,6 +40,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @happyfeeling/config build
       - run: pnpm --filter @happyfeeling/db exec prisma generate
       - run: pnpm --filter @happyfeeling/db exec prisma migrate deploy
       - run: pnpm --filter @happyfeeling/db run seed
