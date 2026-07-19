@@ -9,8 +9,10 @@ export function createReviewQueue(
   return new Queue<ReviewJobPayload>(REVIEW_QUEUE_NAME, {
     connection,
     defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
+      // No retry: postFindings has no idempotency check against existing PR
+      // comments, so retrying a partially-failed job re-posts every finding,
+      // including ones already on the PR from the first attempt.
+      attempts: 1,
     },
   });
 }

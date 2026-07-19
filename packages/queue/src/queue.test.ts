@@ -10,7 +10,7 @@ describe('createReviewQueue', () => {
     await queue.close();
   });
 
-  it('applies defaultJobOptions with attempts: 3 and exponential backoff', async () => {
+  it('applies defaultJobOptions with attempts: 1 (no retry)', async () => {
     const payload: ReviewJobPayload = {
       owner: 'octo',
       repo: 'hello-world',
@@ -20,7 +20,6 @@ describe('createReviewQueue', () => {
 
     const job = await queue.add(REVIEW_QUEUE_NAME, payload);
 
-    expect(job.opts.attempts).toBe(3);
-    expect(job.opts.backoff).toEqual({ type: 'exponential', delay: 5000 });
+    expect(job.opts.attempts).toBe(1);
   });
 });
