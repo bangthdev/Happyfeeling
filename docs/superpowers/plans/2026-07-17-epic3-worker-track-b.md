@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Post-review update:** PR #26 code review found 3 correctness bugs, fixed after
+> this plan was written. The code blocks in Task 2 and Task 5 below no longer match
+> what shipped — `computeDedupHash` takes 4 args (`repo, prNumber, filePath, line`,
+> not 3), and `processReviewJob` persists via `prisma.finding.createMany({ skipDuplicates: true })`
+> instead of one `prisma.finding.create()` per finding. See
+> `packages/github/src/review/dedup.ts` and `apps/worker/src/processJob.ts` for the
+> current implementation.
+
 **Goal:** Create `apps/worker`, a new Node process that consumes BullMQ review jobs (enqueued by `apps/web`'s webhook route), runs the existing review pipeline, and writes each posted finding as a `Finding` row in Postgres via the shared Prisma client. This is the last missing piece before Epic 3 can be verified end-to-end (E3-5).
 
 **Architecture:** `apps/worker/src/index.ts` is a thin composition root (loads env, builds deps, starts `createReviewWorker`). The actual per-job logic lives in `apps/worker/src/processJob.ts` as a small function that takes `runPipeline` as an injected dependency — this keeps it unit-testable without a real GitHub App/Groq call, while a separate integration test exercises the real BullMQ round-trip against local Redis + Postgres. Two small upstream changes are needed first: `runReviewPipeline` (packages/github) currently returns `void` — it must return the posted findings so the worker can write them to DB — and a `computeDedupHash` helper (needed because the `Finding` table's `dedupHash` column is `@unique` with no default, so any insert needs a value today, even though the full dedup-or-skip logic is a separate ticket, AIC-31/E4-1).
