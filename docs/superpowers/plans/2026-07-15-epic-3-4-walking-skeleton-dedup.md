@@ -131,6 +131,8 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 - Xác nhận: route trả `202` ngay, comment thật xuất hiện đúng dòng trên PR (dùng `line`+`side`), và 1 row `Finding` xuất hiện trong Postgres khớp PR đó.
 - Chuyển `AIC-7` (Epic 3) sang Done trên Linear.
 
+**Kết quả nghiệm thu (AIC-31):** đang chạy — PR này chính là "PR test thật" dùng để trigger webhook. Sẽ cập nhật kết quả cụ thể (thời gian phản hồi route, link comment, id row Finding) vào commit tiếp theo sau khi verify xong.
+
 ---
 
 ### Track B tiếp (E4-1): Dedup theo nội dung finding
