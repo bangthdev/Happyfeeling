@@ -22,7 +22,14 @@ describe('worker (real Redis + real Postgres)', () => {
     const runPipeline = async () => ({ posted });
 
     worker = createReviewWorker((job) =>
-      processReviewJob(job, { runPipeline, pipelineDeps: { getToken: async () => 'tok', groqApiKey: 'k' } })
+      processReviewJob(job, {
+        runPipeline,
+        pipelineDeps: {
+          getToken: async () => 'tok',
+          groqApiKey: 'k',
+          filterNewFindings: async (_repo, _prNumber, findings) => findings,
+        },
+      })
     );
 
     const completed = new Promise<void>((resolve) => {
@@ -50,7 +57,14 @@ describe('worker (real Redis + real Postgres)', () => {
     const runPipeline = async () => ({ posted });
 
     worker = createReviewWorker((job) =>
-      processReviewJob(job, { runPipeline, pipelineDeps: { getToken: async () => 'tok', groqApiKey: 'k' } })
+      processReviewJob(job, {
+        runPipeline,
+        pipelineDeps: {
+          getToken: async () => 'tok',
+          groqApiKey: 'k',
+          filterNewFindings: async (_repo, _prNumber, findings) => findings,
+        },
+      })
     );
 
     let completedCount = 0;

@@ -14,7 +14,12 @@ export type { Finding };
 export interface PipelineDeps {
   getToken: () => Promise<string>;
   groqApiKey: string;
+  filterNewFindings: (repo: string, prNumber: number, findings: Finding[]) => Promise<Finding[]>;
 }
+
+// For callers with no dedup store to check against (e.g. a deployment with no database).
+export const passthroughFilterNewFindings: PipelineDeps['filterNewFindings'] = async (_repo, _prNumber, findings) =>
+  findings;
 
 export interface PipelineResult {
   posted: Finding[];
@@ -50,17 +55,19 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
     );
   }
 
+  const newFindings = await deps.filterNewFindings(`${event.owner}/${event.repo}`, event.prNumber, findings);
+
   const { posted, failed } = await postFindings({
     token,
     owner: event.owner,
     repo: event.repo,
     prNumber: event.prNumber,
     commitSha: event.headSha,
-    findings,
+    findings: newFindings,
   });
 
   const severityBreakdown: Record<string, number> = {};
-  for (const finding of findings) {
+  for (const finding of posted) {
     severityBreakdown[finding.severity] = (severityBreakdown[finding.severity] ?? 0) + 1;
   }
 

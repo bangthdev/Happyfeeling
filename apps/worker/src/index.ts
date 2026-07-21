@@ -7,6 +7,7 @@ import { runReviewPipeline } from '@happyfeeling/github/pipeline';
 import { createInstallationTokenProvider } from '@happyfeeling/github/github/auth';
 import { loadConfig } from '@happyfeeling/github/config';
 import { processReviewJob } from './processJob.js';
+import { filterNewFindings } from './dedupFilter.js';
 
 const config = loadConfig();
 const tokenProvider = createInstallationTokenProvider(
@@ -18,7 +19,7 @@ const tokenProvider = createInstallationTokenProvider(
 createReviewWorker((job) =>
   processReviewJob(job, {
     runPipeline: runReviewPipeline,
-    pipelineDeps: { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey },
+    pipelineDeps: { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey, filterNewFindings },
   })
 );
 
