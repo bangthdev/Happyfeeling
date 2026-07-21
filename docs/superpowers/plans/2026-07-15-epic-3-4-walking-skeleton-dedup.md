@@ -131,6 +131,15 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 - Xác nhận: route trả `202` ngay, comment thật xuất hiện đúng dòng trên PR (dùng `line`+`side`), và 1 row `Finding` xuất hiện trong Postgres khớp PR đó.
 - Chuyển `AIC-7` (Epic 3) sang Done trên Linear.
 
+**Kết quả nghiệm thu (AIC-31):** Đã verify bằng chính PR #27 (`nhd98z2/Happyfeeling`), qua `docker compose up -d postgres redis web worker` + `ngrok` trỏ vào `apps/web`.
+
+- **Phương pháp trigger:** GitHub App thuộc account của Bằng nên không đổi được Webhook URL của App sang ngrok. Thay vào đó, tự dựng request `POST /api/webhook` có chữ ký HMAC-SHA256 hợp lệ (tính bằng đúng `GITHUB_WEBHOOK_SECRET` thật trong `.env`) trỏ vào PR #27 thật — cùng code path verify chữ ký như request GitHub gửi, chỉ khác nguồn gửi HTTP.
+- **Route trả 202 ngay:** xác nhận 2 lần, ~0.27–0.34s.
+- **Comment thật đúng dòng:** https://github.com/nhd98z2/Happyfeeling/pull/27#discussion_r3615725531 — dùng `line`+`side` (`scripts/aic31-verify-fixture.js:4`, `side: RIGHT`), không còn field `position`.
+- **Row Finding thật trong Postgres:** `repo=nhd98z2/Happyfeeling, prNumber=27, errorType=high, firstSeenAt=2026-07-20 16:09:55`.
+- File `scripts/aic31-verify-fixture.js` (bug off-by-one cố ý, chỉ để tạo finding thật cho lần verify này) đã bị xoá trước khi merge.
+- Tiện thể phát hiện 2 bug hạ tầng khi bật docker thật lần đầu (đã fix ở commit riêng): `apps/web/Dockerfile` build thiếu workspace deps, `docker-compose.yml` thiếu `REDIS_URL`/`GITHUB_WEBHOOK_SECRET` cho service `web`.
+
 ---
 
 ### Track B tiếp (E4-1): Dedup theo nội dung finding

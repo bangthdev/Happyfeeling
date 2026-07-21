@@ -4,7 +4,7 @@ WORKDIR /repo
 
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @happyfeeling/web build
+RUN pnpm --filter "@happyfeeling/web..." build
 
 FROM node:20-alpine AS runner
 RUN corepack enable
