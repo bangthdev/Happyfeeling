@@ -4,7 +4,7 @@
 import { createServer } from './server.js';
 import { loadConfig } from './config.js';
 import { createInstallationTokenProvider } from './github/auth.js';
-import { runReviewPipeline } from './pipeline.js';
+import { runReviewPipeline, passthroughFilterNewFindings } from './pipeline.js';
 
 const config = loadConfig();
 
@@ -17,7 +17,11 @@ const tokenProvider = createInstallationTokenProvider(
 const app = createServer({
   webhookSecret: config.githubWebhookSecret,
   runPipeline: (event) =>
-    runReviewPipeline(event, { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey }),
+    runReviewPipeline(event, {
+      getToken: () => tokenProvider.getToken(),
+      groqApiKey: config.groqApiKey,
+      filterNewFindings: passthroughFilterNewFindings,
+    }),
 });
 
 app.listen(config.port, () => {

@@ -25,9 +25,10 @@ function toDbFinding(repoSlug: string, prNumber: number, finding: Finding) {
 
 async function persistFindings(repoSlug: string, prNumber: number, findings: Finding[]): Promise<void> {
   if (findings.length === 0) return;
-  // skipDuplicates lets Postgres silently ignore a row whose dedupHash already
-  // exists (e.g. a redelivered job) instead of throwing and crashing the whole
-  // batch. Real dedup-or-skip semantics (matching lastSeenAt, etc.) are AIC-31's job.
+  // Real dedup happens upstream in the pipeline (filterNewFindings) before a finding
+  // ever reaches here. skipDuplicates only guards against a duplicate DB row (e.g. two
+  // workers racing on overlapping jobs) — it does not prevent a duplicate GitHub comment,
+  // since posting already happened earlier in the pipeline by the time this code runs.
   const { count } = await prisma.finding.createMany({
     data: findings.map((finding) => toDbFinding(repoSlug, prNumber, finding)),
     skipDuplicates: true,

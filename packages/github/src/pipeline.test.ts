@@ -13,7 +13,15 @@ import { getPullRequestDiff } from './github/client.js';
 import { postFindings } from './review/commentPoster.js';
 import { reviewDiff, PartialReviewError } from './review/llmReviewer.groq.js';
 import { logMetrics } from './logger.js';
-import { runReviewPipeline } from './pipeline.js';
+import { runReviewPipeline, passthroughFilterNewFindings } from './pipeline.js';
+
+describe('passthroughFilterNewFindings', () => {
+  it('returns the given findings unchanged', async () => {
+    const findings = [{ file: 'a.ts', line: 1, severity: 'low' as const, message: 'm', suggestion: 's' }];
+
+    await expect(passthroughFilterNewFindings('acme/widgets', 7, findings)).resolves.toBe(findings);
+  });
+});
 
 describe('runReviewPipeline', () => {
   beforeEach(() => {
@@ -41,8 +49,9 @@ describe('runReviewPipeline', () => {
     });
 
     const getToken = vi.fn().mockResolvedValue('tok');
+    const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
 
     expect(result).toEqual({
       posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
@@ -53,6 +62,33 @@ describe('runReviewPipeline', () => {
     );
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ pr_number: 7, findings_count: 1, tokens_used: 300, severity_breakdown: { high: 1 } })
+    );
+  });
+
+  it('only posts findings that filterNewFindings has not already marked as seen', async () => {
+    const event: PullRequestEvent = {
+      owner: 'acme',
+      repo: 'widgets',
+      prNumber: 7,
+      headSha: 'sha1',
+      action: 'opened',
+    };
+    const seen = { file: 'src/seen.ts', line: 1, severity: 'low' as const, message: 'old', suggestion: 's1' };
+    const fresh = { file: 'src/fresh.ts', line: 2, severity: 'high' as const, message: 'new', suggestion: 's2' };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue('diff --git a/src/x.ts b/src/x.ts\n...');
+    vi.mocked(reviewDiff).mockResolvedValue({ findings: [seen, fresh], tokensUsed: 300 });
+    vi.mocked(postFindings).mockResolvedValue({ posted: [fresh], skipped: 0, failed: [] });
+    const filterNewFindings = vi.fn().mockResolvedValue([fresh]);
+
+    const getToken = vi.fn().mockResolvedValue('tok');
+
+    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
+
+    expect(filterNewFindings).toHaveBeenCalledWith('acme/widgets', 7, [seen, fresh]);
+    expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: [fresh] }));
+    expect(logMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ findings_count: 1, severity_breakdown: { high: 1 } })
     );
   });
 
@@ -81,8 +117,11 @@ describe('runReviewPipeline', () => {
     });
 
     const getToken = vi.fn().mockResolvedValue('tok');
+    const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toMatchObject({
+    await expect(
+      runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings })
+    ).rejects.toMatchObject({
       name: 'PartialPostError',
       message: expect.stringContaining('Failed to post 1 of 2 finding(s)'),
       posted,
@@ -117,8 +156,9 @@ describe('runReviewPipeline', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const getToken = vi.fn().mockResolvedValue('tok');
+    const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
 
     expect(result).toEqual({ posted: partialFindings });
     expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: partialFindings }));
@@ -143,10 +183,12 @@ describe('runReviewPipeline', () => {
     vi.mocked(reviewDiff).mockRejectedValue(new Error('network down'));
 
     const getToken = vi.fn().mockResolvedValue('tok');
+    const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    await expect(runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' })).rejects.toThrow(
-      'network down'
-    );
+    await expect(
+      runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings })
+    ).rejects.toThrow('network down');
     expect(postFindings).not.toHaveBeenCalled();
+    expect(filterNewFindings).not.toHaveBeenCalled();
   });
 });

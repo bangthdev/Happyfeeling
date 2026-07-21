@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createReviewQueue, createReviewWorker, REVIEW_QUEUE_NAME } from '@happyfeeling/queue';
 import { prisma } from '@happyfeeling/db';
+import { computeDedupHash } from '@happyfeeling/github/review/dedup';
 import { processReviewJob } from './processJob.js';
+import { filterNewFindings } from './dedupFilter.js';
 
 describe('worker (real Redis + real Postgres)', () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
@@ -22,7 +24,14 @@ describe('worker (real Redis + real Postgres)', () => {
     const runPipeline = async () => ({ posted });
 
     worker = createReviewWorker((job) =>
-      processReviewJob(job, { runPipeline, pipelineDeps: { getToken: async () => 'tok', groqApiKey: 'k' } })
+      processReviewJob(job, {
+        runPipeline,
+        pipelineDeps: {
+          getToken: async () => 'tok',
+          groqApiKey: 'k',
+          filterNewFindings: async (_repo, _prNumber, findings) => findings,
+        },
+      })
     );
 
     const completed = new Promise<void>((resolve) => {
@@ -50,7 +59,14 @@ describe('worker (real Redis + real Postgres)', () => {
     const runPipeline = async () => ({ posted });
 
     worker = createReviewWorker((job) =>
-      processReviewJob(job, { runPipeline, pipelineDeps: { getToken: async () => 'tok', groqApiKey: 'k' } })
+      processReviewJob(job, {
+        runPipeline,
+        pipelineDeps: {
+          getToken: async () => 'tok',
+          groqApiKey: 'k',
+          filterNewFindings: async (_repo, _prNumber, findings) => findings,
+        },
+      })
     );
 
     let completedCount = 0;
@@ -68,5 +84,38 @@ describe('worker (real Redis + real Postgres)', () => {
 
     const rows = await prisma.finding.findMany({ where: { repo: 'acme/integration-test' } });
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('filterNewFindings (real Postgres)', () => {
+  afterEach(async () => {
+    await prisma.finding.deleteMany({ where: { repo: 'acme/dedup-integration-test' } });
+  });
+
+  it('bumps lastSeenAt on the real row when the same finding is seen again', async () => {
+    const repo = 'acme/dedup-integration-test';
+    const prNumber = 1;
+    const finding = { file: 'src/x.ts', line: 5, severity: 'medium' as const, message: 'msg', suggestion: 'sugg' };
+    const dedupHash = computeDedupHash(repo, prNumber, finding.file, finding.line);
+
+    const seeded = await prisma.finding.create({
+      data: {
+        repo,
+        prNumber,
+        filePath: finding.file,
+        line: finding.line,
+        errorType: finding.severity,
+        message: finding.message,
+        dedupHash,
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const result = await filterNewFindings(repo, prNumber, [finding]);
+
+    expect(result).toEqual([]);
+    const updated = await prisma.finding.findUniqueOrThrow({ where: { dedupHash } });
+    expect(updated.lastSeenAt.getTime()).toBeGreaterThan(seeded.lastSeenAt.getTime());
   });
 });
