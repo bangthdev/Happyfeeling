@@ -50,7 +50,7 @@ describe('filterNewFindings', () => {
     expect(prisma.finding.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.finding.updateMany).toHaveBeenCalledWith({
       where: { dedupHash: { in: [hashOf(f)] } },
-      data: {},
+      data: { lastSeenAt: expect.any(Date) },
     });
   });
 

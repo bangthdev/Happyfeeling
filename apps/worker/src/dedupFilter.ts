@@ -30,9 +30,13 @@ export async function filterNewFindings(repo: string, prNumber: number, findings
 
   if (existingHashes.length > 0) {
     try {
-      // lastSeenAt is bumped automatically by Prisma's `@updatedAt` on Finding — this
-      // is a real update despite the empty `data`, not a no-op.
-      await prisma.finding.updateMany({ where: { dedupHash: { in: existingHashes } }, data: {} });
+      // Set lastSeenAt explicitly — an empty `data: {}` reports success (count > 0)
+      // but does NOT actually trigger Prisma's `@updatedAt` on updateMany, verified
+      // against a real Postgres instance (Prisma 7.8).
+      await prisma.finding.updateMany({
+        where: { dedupHash: { in: existingHashes } },
+        data: { lastSeenAt: new Date() },
+      });
     } catch (err) {
       // We already know which findings are duplicates (the lookup above succeeded) —
       // a failure to bump lastSeenAt is a best-effort miss, not a reason to repost them.
