@@ -18,6 +18,33 @@ export interface PostFindingsResult {
 
 const UNPROCESSABLE_ENTITY = 422;
 
+export function buildCommentBody(finding: Finding): string {
+  const header = `**[${finding.severity}]** ${finding.message}`;
+
+  if (
+    finding.codeSnippet === undefined ||
+    finding.fixedCode === undefined ||
+    finding.fixedCode.trim() === finding.codeSnippet.trim()
+  ) {
+    return `${header}\n\n${finding.suggestion}`;
+  }
+
+  return [
+    header,
+    '',
+    'Before:',
+    '```ts',
+    finding.codeSnippet,
+    '```',
+    '',
+    '```suggestion',
+    finding.fixedCode,
+    '```',
+    '',
+    finding.suggestion,
+  ].join('\n');
+}
+
 export async function postFindings(
   params: PostFindingsParams,
   postFn: typeof postReviewComment = postReviewComment
@@ -38,7 +65,7 @@ export async function postFindings(
         filePath: finding.file,
         line: finding.line,
         side: 'RIGHT',
-        body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
+        body: buildCommentBody(finding),
       });
       posted.push(finding);
     } catch (err) {

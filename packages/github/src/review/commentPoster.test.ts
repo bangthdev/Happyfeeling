@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { postFindings } from './commentPoster.js';
+import { postFindings, buildCommentBody } from './commentPoster.js';
 import { GithubApiError } from '../github/client.js';
 import type { Finding } from './llmReviewer.js';
 
@@ -72,5 +72,86 @@ describe('postFindings', () => {
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('uses buildCommentBody to build the posted comment body', async () => {
+    const postFn = vi.fn().mockResolvedValue(undefined);
+    const findings: Finding[] = [
+      {
+        file: 'src/foo.ts',
+        line: 5,
+        severity: 'high',
+        message: 'Assignment instead of comparison',
+        suggestion: 'Use === for comparison instead of =.',
+        codeSnippet: 'if (score = 100) {',
+        fixedCode: 'if (score === 100) {',
+      },
+    ];
+
+    await postFindings(
+      { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
+      postFn
+    );
+
+    expect(postFn).toHaveBeenCalledWith(
+      expect.objectContaining({ body: buildCommentBody(findings[0]) })
+    );
+  });
+});
+
+describe('buildCommentBody', () => {
+  it('falls back to the plain message+suggestion format when codeSnippet/fixedCode are missing', () => {
+    const finding: Finding = {
+      file: 'src/foo.ts',
+      line: 5,
+      severity: 'low',
+      message: 'nit',
+      suggestion: 'n/a',
+    };
+
+    expect(buildCommentBody(finding)).toBe('**[low]** nit\n\nn/a');
+  });
+
+  it('shows a Before block plus a GitHub suggestion block when codeSnippet and fixedCode differ', () => {
+    const finding: Finding = {
+      file: 'src/foo.ts',
+      line: 5,
+      severity: 'high',
+      message: 'Assignment instead of comparison',
+      suggestion: 'Use === for comparison instead of =.',
+      codeSnippet: 'if (score = 100) {',
+      fixedCode: 'if (score === 100) {',
+    };
+
+    expect(buildCommentBody(finding)).toBe(
+      [
+        '**[high]** Assignment instead of comparison',
+        '',
+        'Before:',
+        '```ts',
+        'if (score = 100) {',
+        '```',
+        '',
+        '```suggestion',
+        'if (score === 100) {',
+        '```',
+        '',
+        'Use === for comparison instead of =.',
+      ].join('\n')
+    );
+  });
+
+  it('falls back to the plain format when fixedCode is identical to codeSnippet', () => {
+    const finding: Finding = {
+      file: 'src/foo.ts',
+      line: 5,
+      severity: 'medium',
+      message: 'possible issue',
+      suggestion: 'double check this',
+      codeSnippet: 'doThing();',
+      fixedCode: 'doThing();',
+    };
+
+    expect(buildCommentBody(finding)).toBe('**[medium]** possible issue\n\ndouble check this');
   });
 });
