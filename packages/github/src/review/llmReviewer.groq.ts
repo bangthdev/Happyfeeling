@@ -43,11 +43,12 @@ const FINDINGS_TOOL = {
             properties: {
               file: { type: 'string' },
               codeSnippet: { type: 'string' },
+              fixedCode: { type: 'string' },
               severity: { type: 'string', enum: ['high', 'medium', 'low'] },
               message: { type: 'string' },
               suggestion: { type: 'string' },
             },
-            required: ['file', 'codeSnippet', 'severity', 'message', 'suggestion'],
+            required: ['file', 'codeSnippet', 'fixedCode', 'severity', 'message', 'suggestion'],
           },
         },
       },
@@ -59,13 +60,14 @@ const FINDINGS_TOOL = {
 interface RawFinding {
   file: string;
   codeSnippet: string;
+  fixedCode: string;
   severity: Finding['severity'];
   message: string;
   suggestion: string;
 }
 
 function buildPrompt(context: ReviewContext): string {
-  return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và chỉ ra các vấn đề thật sự quan trọng (bug, security, logic sai). Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nVới mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.\n\nDiff:\n${context.diff}`;
+  return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và chỉ ra các vấn đề thật sự quan trọng (bug, security, logic sai). Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nVới mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.\n\nTrường "fixedCode" phải là bản đã sửa đúng lỗi mô tả trong "message", giữ nguyên style/indent gốc — 1 dòng nếu fix chỉ cần 1 dòng, nhiều dòng nếu bug thực sự cần sửa nhiều dòng mới hết lỗi.\n\nDiff:\n${context.diff}`;
 }
 
 // Tính line number thật (new-side) bằng cách đối chiếu codeSnippet với diff,
@@ -103,6 +105,8 @@ function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
       severity: finding.severity,
       message: finding.message,
       suggestion: finding.suggestion,
+      codeSnippet: finding.codeSnippet,
+      fixedCode: finding.fixedCode,
     });
   }
   return findings;
