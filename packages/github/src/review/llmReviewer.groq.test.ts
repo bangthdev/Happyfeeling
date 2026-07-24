@@ -6,7 +6,36 @@ function fakeFetch(impl: (...args: any[]) => Promise<any>): typeof fetch {
 }
 
 describe('reviewDiff (Groq)', () => {
-  it('parses findings from a valid tool_call response', async () => {
+  it('sets temperature to 0 for deterministic output', async () => {
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                { function: { name: 'submit_findings', arguments: JSON.stringify({ findings: [] }) } },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 5 },
+      }),
+    }));
+
+    await reviewDiff({ diff: 'diff...', files: [] }, 'fake-key', fetchFn);
+
+    const [, requestInit] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0];
+    const body = JSON.parse((requestInit as RequestInit).body as string);
+    expect(body.temperature).toBe(0);
+  });
+
+  it('drops a finding when codeSnippet cannot be matched in the diff', async () => {
+    const diff = `diff --git a/src/x.ts b/src/x.ts
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 2;
+`;
     const fetchFn = fakeFetch(async () => ({
       ok: true,
       json: async () => ({
@@ -19,7 +48,57 @@ describe('reviewDiff (Groq)', () => {
                     name: 'submit_findings',
                     arguments: JSON.stringify({
                       findings: [
-                        { file: 'src/x.ts', line: 10, severity: 'high', message: 'bug', suggestion: 'fix it' },
+                        {
+                          file: 'src/x.ts',
+                          codeSnippet: 'this text does not exist in the diff',
+                          severity: 'low',
+                          message: 'm',
+                          suggestion: 's',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5 },
+      }),
+    }));
+
+    const result = await reviewDiff({ diff, files: ['src/x.ts'] }, 'fake-key', fetchFn);
+
+    expect(result.findings).toEqual([]);
+  });
+
+  it('resolves the finding line by matching codeSnippet against the diff', async () => {
+    const diff = `diff --git a/src/x.ts b/src/x.ts
+@@ -1,3 +1,4 @@
+ const a = 1;
++const bug = 1;
+ const b = 2;
+ const c = 3;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'src/x.ts',
+                          codeSnippet: 'const bug = 1;',
+                          severity: 'high',
+                          message: 'bug',
+                          suggestion: 'fix it',
+                        },
                       ],
                     }),
                   },
@@ -32,10 +111,11 @@ describe('reviewDiff (Groq)', () => {
       }),
     }));
 
-    const result = await reviewDiff({ diff: 'diff...', files: ['src/x.ts'] }, 'fake-key', fetchFn);
+    const result = await reviewDiff({ diff, files: ['src/x.ts'] }, 'fake-key', fetchFn);
 
-    expect(result.findings).toHaveLength(1);
-    expect(result.findings[0].file).toBe('src/x.ts');
+    expect(result.findings).toEqual([
+      { file: 'src/x.ts', line: 2, severity: 'high', message: 'bug', suggestion: 'fix it' },
+    ]);
     expect(result.tokensUsed).toBe(150);
   });
 
@@ -86,8 +166,9 @@ describe('reviewDiff (Groq)', () => {
   });
 
   it('splits an oversized diff into multiple Groq calls, merges findings, sums tokens, and delays between calls', async () => {
-    const bigFile = (path: string) =>
-      `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${'+'.repeat(30000)}\n`;
+    const bigLine = '+'.repeat(30000);
+    const bigLineContent = bigLine.slice(1);
+    const bigFile = (path: string) => `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${bigLine}\n`;
     const diff = bigFile('a.ts') + bigFile('b.ts');
 
     let callCount = 0;
@@ -107,7 +188,7 @@ describe('reviewDiff (Groq)', () => {
                         findings: [
                           {
                             file: `${callCount}.ts`,
-                            line: 1,
+                            codeSnippet: bigLineContent,
                             severity: 'low',
                             message: 'm',
                             suggestion: 's',
@@ -178,8 +259,9 @@ describe('reviewDiff (Groq)', () => {
   });
 
   it('throws a PartialReviewError carrying findings already collected when a later chunk fails', async () => {
-    const bigFile = (path: string) =>
-      `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${'+'.repeat(30000)}\n`;
+    const bigLine = '+'.repeat(30000);
+    const bigLineContent = bigLine.slice(1);
+    const bigFile = (path: string) => `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${bigLine}\n`;
     const diff = bigFile('a.ts') + bigFile('b.ts');
 
     let callCount = 0;
@@ -198,7 +280,7 @@ describe('reviewDiff (Groq)', () => {
                         name: 'submit_findings',
                         arguments: JSON.stringify({
                           findings: [
-                            { file: 'a.ts', line: 1, severity: 'low', message: 'm', suggestion: 's' },
+                            { file: 'a.ts', codeSnippet: bigLineContent, severity: 'low', message: 'm', suggestion: 's' },
                           ],
                         }),
                       },
