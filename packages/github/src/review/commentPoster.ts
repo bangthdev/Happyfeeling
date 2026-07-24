@@ -18,28 +18,9 @@ export interface PostFindingsResult {
 
 const UNPROCESSABLE_ENTITY = 422;
 
-const FENCE_LANGUAGE_BY_EXTENSION: Record<string, string> = {
-  ts: 'ts',
-  tsx: 'tsx',
-  js: 'js',
-  jsx: 'jsx',
-  json: 'json',
-  yml: 'yaml',
-  yaml: 'yaml',
-  md: 'md',
-  py: 'python',
-  go: 'go',
-  sh: 'bash',
-  sql: 'sql',
-  css: 'css',
-  html: 'html',
-};
-
-function fenceLanguage(filePath: string): string {
-  const extension = filePath.split('.').pop()?.toLowerCase();
-  return (extension && FENCE_LANGUAGE_BY_EXTENSION[extension]) || '';
-}
-
+// No separate "Before" block: GitHub's suggestion box already renders the
+// current line (red) above the proposed one (green) — repeating it here
+// would just duplicate what the box already shows.
 export function buildCommentBody(finding: Finding): string {
   const header = `**[${finding.severity}]** ${finding.message}`;
 
@@ -48,26 +29,12 @@ export function buildCommentBody(finding: Finding): string {
     finding.fixedCode === undefined ||
     finding.fixedCode.trim() === '' ||
     finding.fixedCode.trim() === finding.codeSnippet.trim() ||
-    finding.codeSnippet.includes('```') ||
     finding.fixedCode.includes('```')
   ) {
     return `${header}\n\n${finding.suggestion}`;
   }
 
-  return [
-    header,
-    '',
-    'Before:',
-    '```' + fenceLanguage(finding.file),
-    finding.codeSnippet,
-    '```',
-    '',
-    '```suggestion',
-    finding.fixedCode,
-    '```',
-    '',
-    finding.suggestion,
-  ].join('\n');
+  return [header, '', finding.suggestion, '', '```suggestion', finding.fixedCode, '```'].join('\n');
 }
 
 export async function postFindings(
