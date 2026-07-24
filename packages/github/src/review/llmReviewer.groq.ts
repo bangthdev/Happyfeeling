@@ -42,12 +42,12 @@ const FINDINGS_TOOL = {
             type: 'object',
             properties: {
               file: { type: 'string' },
-              line: { type: 'number' },
+              codeSnippet: { type: 'string' },
               severity: { type: 'string', enum: ['high', 'medium', 'low'] },
               message: { type: 'string' },
               suggestion: { type: 'string' },
             },
-            required: ['file', 'line', 'severity', 'message', 'suggestion'],
+            required: ['file', 'codeSnippet', 'severity', 'message', 'suggestion'],
           },
         },
       },
@@ -56,8 +56,56 @@ const FINDINGS_TOOL = {
   },
 };
 
+interface RawFinding {
+  file: string;
+  codeSnippet: string;
+  severity: Finding['severity'];
+  message: string;
+  suggestion: string;
+}
+
 function buildPrompt(context: ReviewContext): string {
-  return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và chỉ ra các vấn đề thật sự quan trọng (bug, security, logic sai). Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nDiff:\n${context.diff}`;
+  return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và chỉ ra các vấn đề thật sự quan trọng (bug, security, logic sai). Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nVới mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.\n\nDiff:\n${context.diff}`;
+}
+
+// Tính line number thật (new-side) bằng cách đối chiếu codeSnippet với diff,
+// thay vì tin model tự đếm dòng — model đếm dòng không chính xác.
+function resolveLine(diff: string, codeSnippet: string): number | null {
+  const target = codeSnippet.trim();
+  let newLine = 0;
+  let inHunk = false;
+
+  for (const line of diff.split('\n')) {
+    const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunkMatch) {
+      newLine = Number(hunkMatch[1]) - 1;
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith('-')) continue;
+
+    newLine++;
+    if (line.slice(1).trim() === target) return newLine;
+  }
+
+  return null;
+}
+
+function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
+  const findings: Finding[] = [];
+  for (const finding of raw) {
+    const line = resolveLine(context.diff, finding.codeSnippet);
+    if (line === null) continue;
+    findings.push({
+      file: finding.file,
+      line,
+      severity: finding.severity,
+      message: finding.message,
+      suggestion: finding.suggestion,
+    });
+  }
+  return findings;
 }
 
 interface GroqMessage {
@@ -74,11 +122,11 @@ interface GroqResponse {
   usage: { prompt_tokens: number; completion_tokens: number };
 }
 
-function parseFindings(response: GroqResponse): Finding[] {
+function parseFindings(response: GroqResponse): RawFinding[] {
   const toolCall = response.choices[0]?.message.tool_calls?.[0];
   if (!toolCall) throw new Error('No tool call in Groq response');
 
-  const args = JSON.parse(toolCall.function.arguments) as { findings: Finding[] };
+  const args = JSON.parse(toolCall.function.arguments) as { findings: RawFinding[] };
   if (!Array.isArray(args.findings)) throw new Error('findings is not an array');
   return args.findings;
 }
@@ -99,6 +147,7 @@ async function callGroq(
     body: JSON.stringify({
       model: GROQ_MODEL,
       messages,
+      temperature: 0,
       tools: [FINDINGS_TOOL],
       tool_choice: { type: 'function', function: { name: 'submit_findings' } },
     }),
@@ -130,7 +179,7 @@ async function reviewChunk(
   const tokensUsed = response.usage.prompt_tokens + response.usage.completion_tokens;
 
   try {
-    return { findings: parseFindings(response), tokensUsed };
+    return { findings: resolveFindings(context, parseFindings(response)), tokensUsed };
   } catch {
     const retryMessages: GroqMessage[] = [
       ...messages,
@@ -145,7 +194,7 @@ async function reviewChunk(
     ];
     const retryResponse = await callGroq(apiKey, retryMessages, fetchFn, sleepFn);
     const retryTokensUsed = tokensUsed + retryResponse.usage.prompt_tokens + retryResponse.usage.completion_tokens;
-    return { findings: parseFindings(retryResponse), tokensUsed: retryTokensUsed };
+    return { findings: resolveFindings(context, parseFindings(retryResponse)), tokensUsed: retryTokensUsed };
   }
 }
 
