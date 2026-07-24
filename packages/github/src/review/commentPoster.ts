@@ -18,13 +18,38 @@ export interface PostFindingsResult {
 
 const UNPROCESSABLE_ENTITY = 422;
 
+const FENCE_LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  ts: 'ts',
+  tsx: 'tsx',
+  js: 'js',
+  jsx: 'jsx',
+  json: 'json',
+  yml: 'yaml',
+  yaml: 'yaml',
+  md: 'md',
+  py: 'python',
+  go: 'go',
+  sh: 'bash',
+  sql: 'sql',
+  css: 'css',
+  html: 'html',
+};
+
+function fenceLanguage(filePath: string): string {
+  const extension = filePath.split('.').pop()?.toLowerCase();
+  return (extension && FENCE_LANGUAGE_BY_EXTENSION[extension]) || '';
+}
+
 export function buildCommentBody(finding: Finding): string {
   const header = `**[${finding.severity}]** ${finding.message}`;
 
   if (
     finding.codeSnippet === undefined ||
     finding.fixedCode === undefined ||
-    finding.fixedCode.trim() === finding.codeSnippet.trim()
+    finding.fixedCode.trim() === '' ||
+    finding.fixedCode.trim() === finding.codeSnippet.trim() ||
+    finding.codeSnippet.includes('```') ||
+    finding.fixedCode.includes('```')
   ) {
     return `${header}\n\n${finding.suggestion}`;
   }
@@ -33,7 +58,7 @@ export function buildCommentBody(finding: Finding): string {
     header,
     '',
     'Before:',
-    '```ts',
+    '```' + fenceLanguage(finding.file),
     finding.codeSnippet,
     '```',
     '',

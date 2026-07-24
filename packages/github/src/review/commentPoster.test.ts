@@ -154,4 +154,79 @@ describe('buildCommentBody', () => {
 
     expect(buildCommentBody(finding)).toBe('**[medium]** possible issue\n\ndouble check this');
   });
+
+  it('derives the code fence language from a recognized file extension', () => {
+    const finding: Finding = {
+      file: 'docker-compose.yml',
+      line: 3,
+      severity: 'medium',
+      message: 'missing REDIS_URL',
+      suggestion: 'add the env var',
+      codeSnippet: 'services:',
+      fixedCode: 'services:\n  # add env vars here',
+    };
+
+    expect(buildCommentBody(finding)).toBe(
+      [
+        '**[medium]** missing REDIS_URL',
+        '',
+        'Before:',
+        '```yaml',
+        'services:',
+        '```',
+        '',
+        '```suggestion',
+        'services:\n  # add env vars here',
+        '```',
+        '',
+        'add the env var',
+      ].join('\n')
+    );
+  });
+
+  it('falls back to a plain fence for an unrecognized or missing file extension', () => {
+    const finding: Finding = {
+      file: 'Dockerfile',
+      line: 1,
+      severity: 'low',
+      message: 'nit',
+      suggestion: 'n/a',
+      codeSnippet: 'FROM node:20',
+      fixedCode: 'FROM node:20-alpine',
+    };
+
+    expect(buildCommentBody(finding)).toBe(
+      ['**[low]** nit', '', 'Before:', '```', 'FROM node:20', '```', '', '```suggestion', 'FROM node:20-alpine', '```', '', 'n/a'].join(
+        '\n'
+      )
+    );
+  });
+
+  it('falls back to the plain format when codeSnippet or fixedCode contains a triple-backtick', () => {
+    const finding: Finding = {
+      file: 'docs/example.md',
+      line: 2,
+      severity: 'low',
+      message: 'nested code fence',
+      suggestion: 'escape it',
+      codeSnippet: '```js\nconsole.log(1)\n```',
+      fixedCode: '```js\nconsole.log(2)\n```',
+    };
+
+    expect(buildCommentBody(finding)).toBe('**[low]** nested code fence\n\nescape it');
+  });
+
+  it('falls back to the plain format when fixedCode is empty', () => {
+    const finding: Finding = {
+      file: 'src/foo.ts',
+      line: 5,
+      severity: 'medium',
+      message: 'model returned nothing',
+      suggestion: 'n/a',
+      codeSnippet: 'doThing();',
+      fixedCode: '',
+    };
+
+    expect(buildCommentBody(finding)).toBe('**[medium]** model returned nothing\n\nn/a');
+  });
 });
