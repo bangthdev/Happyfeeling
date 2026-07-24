@@ -18,6 +18,25 @@ export interface PostFindingsResult {
 
 const UNPROCESSABLE_ENTITY = 422;
 
+// No separate "Before" block: GitHub's suggestion box already renders the
+// current line (red) above the proposed one (green) — repeating it here
+// would just duplicate what the box already shows.
+export function buildCommentBody(finding: Finding): string {
+  const header = `**[${finding.severity}]** ${finding.message}`;
+
+  if (
+    finding.codeSnippet === undefined ||
+    finding.fixedCode === undefined ||
+    finding.fixedCode.trim() === '' ||
+    finding.fixedCode.trim() === finding.codeSnippet.trim() ||
+    finding.fixedCode.includes('```')
+  ) {
+    return `${header}\n\n${finding.suggestion}`;
+  }
+
+  return [header, '', finding.suggestion, '', '```suggestion', finding.fixedCode, '```'].join('\n');
+}
+
 export async function postFindings(
   params: PostFindingsParams,
   postFn: typeof postReviewComment = postReviewComment
@@ -38,7 +57,7 @@ export async function postFindings(
         filePath: finding.file,
         line: finding.line,
         side: 'RIGHT',
-        body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
+        body: buildCommentBody(finding),
       });
       posted.push(finding);
     } catch (err) {

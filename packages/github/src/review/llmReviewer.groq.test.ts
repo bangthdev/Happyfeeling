@@ -114,9 +114,64 @@ describe('reviewDiff (Groq)', () => {
     const result = await reviewDiff({ diff, files: ['src/x.ts'] }, 'fake-key', fetchFn);
 
     expect(result.findings).toEqual([
-      { file: 'src/x.ts', line: 2, severity: 'high', message: 'bug', suggestion: 'fix it' },
+      { file: 'src/x.ts', line: 2, severity: 'high', message: 'bug', suggestion: 'fix it', codeSnippet: 'const bug = 1;' },
     ]);
     expect(result.tokensUsed).toBe(150);
+  });
+
+  it('carries codeSnippet and fixedCode through into the final Finding', async () => {
+    const diff = `diff --git a/src/x.ts b/src/x.ts
+@@ -1,3 +1,4 @@
+ const a = 1;
++const bug = 1;
+ const b = 2;
+ const c = 3;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'src/x.ts',
+                          codeSnippet: 'const bug = 1;',
+                          fixedCode: 'const notBug = 1;',
+                          severity: 'high',
+                          message: 'bad name',
+                          suggestion: 'rename it',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff({ diff, files: ['src/x.ts'] }, 'fake-key', fetchFn);
+
+    expect(result.findings).toEqual([
+      {
+        file: 'src/x.ts',
+        line: 2,
+        severity: 'high',
+        message: 'bad name',
+        suggestion: 'rename it',
+        codeSnippet: 'const bug = 1;',
+        fixedCode: 'const notBug = 1;',
+      },
+    ]);
   });
 
   it('retries once when the first response has no tool call', async () => {

@@ -8,6 +8,10 @@ export interface Finding {
   severity: 'high' | 'medium' | 'low';
   message: string;
   suggestion: string;
+  /** Exact original line the finding refers to (Groq reviewer only — matches resolveLine's anchor text). */
+  codeSnippet?: string;
+  /** Corrected version of codeSnippet (Groq reviewer only) — may span multiple lines. */
+  fixedCode?: string;
 }
 
 export interface ReviewResult {
