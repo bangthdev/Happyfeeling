@@ -174,6 +174,316 @@ describe('reviewDiff (Groq)', () => {
     ]);
   });
 
+  it('resolves the file path from the diff, ignoring a wrong path returned by the model', async () => {
+    const diff = `diff --git a/src/a.ts b/src/a.ts
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 2;
+diff --git a/demo/notes-store.ts b/demo/notes-store.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const bug = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'notes-store.ts', // wrong — model dropped the "demo/" prefix
+                          codeSnippet: 'const bug = 1;',
+                          fixedCode: 'const notBug = 1;',
+                          severity: 'high',
+                          message: 'bad name',
+                          suggestion: 'rename it',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff(
+      { diff, files: ['src/a.ts', 'demo/notes-store.ts'] },
+      'fake-key',
+      fetchFn
+    );
+
+    expect(result.findings).toEqual([
+      {
+        file: 'demo/notes-store.ts',
+        line: 2,
+        severity: 'high',
+        message: 'bad name',
+        suggestion: 'rename it',
+        codeSnippet: 'const bug = 1;',
+        fixedCode: 'const notBug = 1;',
+      },
+    ]);
+  });
+
+  it('uses the model-provided file as a hint to disambiguate when codeSnippet matches multiple files', async () => {
+    const diff = `diff --git a/src/a.ts b/src/a.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+diff --git a/src/b.ts b/src/b.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'src/b.ts',
+                          codeSnippet: 'const shared = 1;',
+                          fixedCode: 'const notShared = 1;',
+                          severity: 'low',
+                          message: 'dup',
+                          suggestion: 'rename',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff({ diff, files: ['src/a.ts', 'src/b.ts'] }, 'fake-key', fetchFn);
+
+    expect(result.findings[0].file).toBe('src/b.ts');
+  });
+
+  it('drops a finding instead of using an empty file when the diff --git header cannot be parsed', async () => {
+    const diff = `diff --git "a/tệp.ts" "b/tệp.ts"
+@@ -1,2 +1,3 @@
+ const x = 1;
++const bug = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'tệp.ts',
+                          codeSnippet: 'const bug = 1;',
+                          fixedCode: 'const notBug = 1;',
+                          severity: 'low',
+                          message: 'm',
+                          suggestion: 's',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff({ diff, files: [] }, 'fake-key', fetchFn);
+
+    expect(result.findings).toEqual([]);
+  });
+
+  it('prefers an exact hintFile match over a suffix match that appears earlier in the diff', async () => {
+    const diff = `diff --git a/vendor/src/b.ts b/vendor/src/b.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+diff --git a/src/b.ts b/src/b.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'src/b.ts',
+                          codeSnippet: 'const shared = 1;',
+                          fixedCode: 'const notShared = 1;',
+                          severity: 'low',
+                          message: 'dup',
+                          suggestion: 'rename',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff(
+      { diff, files: ['vendor/src/b.ts', 'src/b.ts'] },
+      'fake-key',
+      fetchFn
+    );
+
+    expect(result.findings[0].file).toBe('src/b.ts');
+  });
+
+  it('drops the finding when codeSnippet matches multiple files and hintFile disambiguates none of them', async () => {
+    const diff = `diff --git a/src/a.ts b/src/a.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+diff --git a/src/b.ts b/src/b.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const shared = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'src/c.ts',
+                          codeSnippet: 'const shared = 1;',
+                          fixedCode: 'const notShared = 1;',
+                          severity: 'low',
+                          message: 'dup',
+                          suggestion: 'rename',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff(
+      { diff, files: ['src/a.ts', 'src/b.ts'] },
+      'fake-key',
+      fetchFn
+    );
+
+    expect(result.findings).toEqual([]);
+  });
+
+  it('drops the finding instead of guessing when the only content match is in a file whose header cannot be parsed and an unrelated file happens to share the same line', async () => {
+    const diff = `diff --git "a/tệp.ts" "b/tệp.ts"
+@@ -1,2 +1,3 @@
+ const x = 1;
++const bug = 1;
+ const y = 2;
+diff --git a/src/other.ts b/src/other.ts
+@@ -1,2 +1,3 @@
+ const x = 1;
++const bug = 1;
+ const y = 2;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: 'submit_findings',
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: 'tệp.ts',
+                          codeSnippet: 'const bug = 1;',
+                          fixedCode: 'const notBug = 1;',
+                          severity: 'low',
+                          message: 'm',
+                          suggestion: 's',
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff({ diff, files: ['src/other.ts'] }, 'fake-key', fetchFn);
+
+    expect(result.findings).toEqual([]);
+  });
+
   it('retries once when the first response has no tool call', async () => {
     let callCount = 0;
     const fetchFn = fakeFetch(async () => {
