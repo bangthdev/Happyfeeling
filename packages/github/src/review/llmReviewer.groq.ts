@@ -1,4 +1,5 @@
 import type { ReviewContext } from './contextBuilder.js';
+import { splitDiffByFile, filePathOf } from './contextBuilder.js';
 import type { Finding, ReviewResult } from './llmReviewer.js';
 import { chunkDiff } from './diffChunker.js';
 
@@ -70,14 +71,13 @@ function buildPrompt(context: ReviewContext): string {
   return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và chỉ ra các vấn đề thật sự quan trọng (bug, security, logic sai). Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nVới mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.\n\nTrường "fixedCode" phải là bản đã sửa đúng lỗi mô tả trong "message", giữ nguyên style/indent gốc — 1 dòng nếu fix chỉ cần 1 dòng, nhiều dòng nếu bug thực sự cần sửa nhiều dòng mới hết lỗi.\n\nDiff:\n${context.diff}`;
 }
 
-// Tính line number thật (new-side) bằng cách đối chiếu codeSnippet với diff,
-// thay vì tin model tự đếm dòng — model đếm dòng không chính xác.
-function resolveLine(diff: string, codeSnippet: string): number | null {
-  const target = codeSnippet.trim();
+// Finds the line in a single file's diff block whose content matches target
+// exactly (new-side line number), or null if there's no match in this block.
+function findLineInBlock(block: string, target: string): number | null {
   let newLine = 0;
   let inHunk = false;
 
-  for (const line of diff.split('\n')) {
+  for (const line of block.split('\n')) {
     const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
     if (hunkMatch) {
       newLine = Number(hunkMatch[1]) - 1;
@@ -94,14 +94,51 @@ function resolveLine(diff: string, codeSnippet: string): number | null {
   return null;
 }
 
+// Derives file + line from the diff instead of trusting the model's own
+// values, which can be wrong. hintFile (the model's file guess) only breaks
+// ties when codeSnippet matches identical content in more than one file —
+// it is not authoritative. Ambiguous cases (multiple candidates, hint
+// doesn't confidently pick one) are dropped rather than guessed, same as
+// the no-match case — a wrong guess posts on the wrong file silently,
+// which is worse than not posting at all.
+function resolveFileAndLine(
+  diff: string,
+  codeSnippet: string,
+  hintFile: string
+): { file: string; line: number } | null {
+  const target = codeSnippet.trim();
+  const matches: { file: string; line: number }[] = [];
+  let hasUnresolvableMatch = false;
+
+  for (const block of splitDiffByFile(diff)) {
+    const line = findLineInBlock(block, target);
+    if (line === null) continue;
+
+    const file = filePathOf(block);
+    if (file === '') {
+      hasUnresolvableMatch = true;
+      continue;
+    }
+    matches.push({ file, line });
+  }
+
+  const exactMatch = matches.find((m) => m.file === hintFile);
+  if (exactMatch) return exactMatch;
+
+  if (matches.length === 1 && !hasUnresolvableMatch) return matches[0];
+  if (hasUnresolvableMatch) return null;
+
+  return matches.find((m) => m.file.endsWith(`/${hintFile}`)) ?? null;
+}
+
 function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
   const findings: Finding[] = [];
   for (const finding of raw) {
-    const line = resolveLine(context.diff, finding.codeSnippet);
-    if (line === null) continue;
+    const resolved = resolveFileAndLine(context.diff, finding.codeSnippet, finding.file);
+    if (resolved === null) continue;
     findings.push({
-      file: finding.file,
-      line,
+      file: resolved.file,
+      line: resolved.line,
       severity: finding.severity,
       message: finding.message,
       suggestion: finding.suggestion,
