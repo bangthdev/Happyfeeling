@@ -31,6 +31,31 @@ describe('reviewDiff (OpenRouter)', () => {
     expect(body.model).toBe('anthropic/claude-haiku-4.5');
   });
 
+  it('instructs the model to list every finding, not just the most severe one', async () => {
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                { function: { name: 'submit_findings', arguments: JSON.stringify({ findings: [] }) } },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 5 },
+      }),
+    }));
+
+    await reviewDiff({ diff: 'diff...', files: [] }, 'fake-key', fetchFn);
+
+    const [, requestInit] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0];
+    const body = JSON.parse((requestInit as RequestInit).body as string);
+    const prompt = body.messages[0].content as string;
+    expect(prompt).toContain('TẤT CẢ');
+  });
+
   it('drops a finding when codeSnippet cannot be matched in the diff', async () => {
     const diff = `diff --git a/src/x.ts b/src/x.ts
 @@ -1,2 +1,2 @@
