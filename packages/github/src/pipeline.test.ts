@@ -3,15 +3,15 @@ import type { PullRequestEvent } from './webhook/parse.js';
 
 vi.mock('./github/client.js', () => ({ getPullRequestDiff: vi.fn() }));
 vi.mock('./review/commentPoster.js', () => ({ postFindings: vi.fn() }));
-vi.mock('./review/llmReviewer.groq.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./review/llmReviewer.groq.js')>();
+vi.mock('./review/llmReviewer.openrouter.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./review/llmReviewer.openrouter.js')>();
   return { ...actual, reviewDiff: vi.fn() };
 });
 vi.mock('./logger.js', () => ({ logMetrics: vi.fn() }));
 
 import { getPullRequestDiff } from './github/client.js';
 import { postFindings } from './review/commentPoster.js';
-import { reviewDiff, PartialReviewError } from './review/llmReviewer.groq.js';
+import { reviewDiff, PartialReviewError } from './review/llmReviewer.openrouter.js';
 import { logMetrics } from './logger.js';
 import { runReviewPipeline, passthroughFilterNewFindings } from './pipeline.js';
 
@@ -51,7 +51,7 @@ describe('runReviewPipeline', () => {
     const getToken = vi.fn().mockResolvedValue('tok');
     const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
+    const result = await runReviewPipeline(event, { getToken, openrouterApiKey: 'fake-openrouter-key', filterNewFindings });
 
     expect(result).toEqual({
       posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
@@ -83,7 +83,7 @@ describe('runReviewPipeline', () => {
 
     const getToken = vi.fn().mockResolvedValue('tok');
 
-    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
+    await runReviewPipeline(event, { getToken, openrouterApiKey: 'fake-openrouter-key', filterNewFindings });
 
     expect(filterNewFindings).toHaveBeenCalledWith('acme/widgets', 7, [seen, fresh]);
     expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: [fresh] }));
@@ -120,7 +120,7 @@ describe('runReviewPipeline', () => {
     const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
     await expect(
-      runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings })
+      runReviewPipeline(event, { getToken, openrouterApiKey: 'fake-openrouter-key', filterNewFindings })
     ).rejects.toMatchObject({
       name: 'PartialPostError',
       message: expect.stringContaining('Failed to post 1 of 2 finding(s)'),
@@ -147,7 +147,7 @@ describe('runReviewPipeline', () => {
     vi.mocked(getPullRequestDiff).mockResolvedValue('diff --git a/src/x.ts b/src/x.ts\n...');
     vi.mocked(reviewDiff).mockRejectedValue(
       new PartialReviewError(
-        'Groq review failed on chunk 2/3',
+        'OpenRouter review failed on chunk 2/3',
         { findings: partialFindings, tokensUsed: 150 },
         new Error('401')
       )
@@ -158,7 +158,7 @@ describe('runReviewPipeline', () => {
     const getToken = vi.fn().mockResolvedValue('tok');
     const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings });
+    const result = await runReviewPipeline(event, { getToken, openrouterApiKey: 'fake-openrouter-key', filterNewFindings });
 
     expect(result).toEqual({ posted: partialFindings });
     expect(postFindings).toHaveBeenCalledWith(expect.objectContaining({ findings: partialFindings }));
@@ -186,7 +186,7 @@ describe('runReviewPipeline', () => {
     const filterNewFindings = vi.fn().mockImplementation(async (_repo, _prNumber, findings) => findings);
 
     await expect(
-      runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key', filterNewFindings })
+      runReviewPipeline(event, { getToken, openrouterApiKey: 'fake-openrouter-key', filterNewFindings })
     ).rejects.toThrow('network down');
     expect(postFindings).not.toHaveBeenCalled();
     expect(filterNewFindings).not.toHaveBeenCalled();

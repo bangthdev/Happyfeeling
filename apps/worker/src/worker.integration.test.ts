@@ -28,7 +28,7 @@ describe('worker (real Redis + real Postgres)', () => {
         runPipeline,
         pipelineDeps: {
           getToken: async () => 'tok',
-          groqApiKey: 'k',
+          openrouterApiKey: 'k',
           filterNewFindings: async (_repo, _prNumber, findings) => findings,
         },
       })
@@ -63,7 +63,7 @@ describe('worker (real Redis + real Postgres)', () => {
         runPipeline,
         pipelineDeps: {
           getToken: async () => 'tok',
-          groqApiKey: 'k',
+          openrouterApiKey: 'k',
           filterNewFindings: async (_repo, _prNumber, findings) => findings,
         },
       })
