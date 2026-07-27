@@ -1,4 +1,11 @@
-const IGNORED_PATH_PATTERNS = [/\.pb\.go$/, /(^|\/)vendor\//, /(^|\/)node_modules\//];
+const IGNORED_PATH_PATTERNS = [
+  /\.pb\.go$/,
+  /(^|\/)vendor\//,
+  /(^|\/)node_modules\//,
+  /(^|\/)package-lock\.json$/,
+  /(^|\/)pnpm-lock\.yaml$/,
+  /(^|\/)yarn\.lock$/,
+];
 
 export interface ReviewContext {
   diff: string;
