@@ -42,4 +42,34 @@ diff --git a/node_modules/pkg/index.js b/node_modules/pkg/index.js
     const context = buildContext(diff);
     expect(context.files).toEqual([]);
   });
+
+  it('filters lockfiles (package-lock.json, pnpm-lock.yaml, yarn.lock)', () => {
+    const diff = `diff --git a/src/foo.ts b/src/foo.ts
+--- a/src/foo.ts
++++ b/src/foo.ts
+@@ -1,1 +1,1 @@
+-old
++new
+diff --git a/package-lock.json b/package-lock.json
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,1 +1,1 @@
+-old
++new
+diff --git a/backend/pnpm-lock.yaml b/backend/pnpm-lock.yaml
+--- a/backend/pnpm-lock.yaml
++++ b/backend/pnpm-lock.yaml
+@@ -1,1 +1,1 @@
+-old
++new
+diff --git a/yarn.lock b/yarn.lock
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -1,1 +1,1 @@
+-old
++new
+`;
+    const context = buildContext(diff);
+    expect(context.files).toEqual(['src/foo.ts']);
+  });
 });
