@@ -3,14 +3,14 @@ import { splitDiffByFile, filePathOf } from './contextBuilder.js';
 import type { Finding, ReviewResult } from './llmReviewer.js';
 import { chunkDiff } from './diffChunker.js';
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
-// Groq's TPM limit is 12k; budget half of it per chunk to leave room for the
-// prompt template and the model's response within the same per-minute window.
-const MAX_TOKENS_PER_CHUNK = 6000;
-// Spacing between chunk calls so consecutive chunks don't land in the same
-// rate-limit window and re-trigger a 429.
-const CHUNK_DELAY_MS = 3000;
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODEL = 'anthropic/claude-haiku-4.5';
+// OpenRouter/Claude has nowhere near Groq's punishing 12k TPM free-tier
+// limit, so a single chunk comfortably covers almost any real PR diff —
+// this is a safety cap against a truly enormous diff, not a routine split.
+const MAX_TOKENS_PER_CHUNK = 100000;
+// Spacing between chunk calls on the rare diff that needs more than one.
+const CHUNK_DELAY_MS = 1000;
 const DEFAULT_RATE_LIMIT_RETRY_MS = 5000;
 const MAX_RATE_LIMIT_RETRIES = 3;
 
@@ -149,12 +149,12 @@ function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
   return findings;
 }
 
-interface GroqMessage {
+interface OpenRouterMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-interface GroqResponse {
+interface OpenRouterResponse {
   choices: Array<{
     message: {
       tool_calls?: Array<{ function: { name: string; arguments: string } }>;
@@ -163,30 +163,30 @@ interface GroqResponse {
   usage: { prompt_tokens: number; completion_tokens: number };
 }
 
-function parseFindings(response: GroqResponse): RawFinding[] {
+function parseFindings(response: OpenRouterResponse): RawFinding[] {
   const toolCall = response.choices[0]?.message.tool_calls?.[0];
-  if (!toolCall) throw new Error('No tool call in Groq response');
+  if (!toolCall) throw new Error('No tool call in OpenRouter response');
 
   const args = JSON.parse(toolCall.function.arguments) as { findings: RawFinding[] };
   if (!Array.isArray(args.findings)) throw new Error('findings is not an array');
   return args.findings;
 }
 
-async function callGroq(
+async function callOpenRouter(
   apiKey: string,
-  messages: GroqMessage[],
+  messages: OpenRouterMessage[],
   fetchFn: typeof fetch,
   sleepFn: SleepFn,
   retriesLeft = MAX_RATE_LIMIT_RETRIES
-): Promise<GroqResponse> {
-  const res = await fetchFn(GROQ_API_URL, {
+): Promise<OpenRouterResponse> {
+  const res = await fetchFn(OPENROUTER_API_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: OPENROUTER_MODEL,
       messages,
       temperature: 0,
       tools: [FINDINGS_TOOL],
@@ -199,13 +199,13 @@ async function callGroq(
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
     const delayMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : DEFAULT_RATE_LIMIT_RETRY_MS;
     await sleepFn(delayMs);
-    return callGroq(apiKey, messages, fetchFn, sleepFn, retriesLeft - 1);
+    return callOpenRouter(apiKey, messages, fetchFn, sleepFn, retriesLeft - 1);
   }
 
   if (!res.ok) {
-    throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
+    throw new Error(`OpenRouter API error: ${res.status} ${await res.text()}`);
   }
-  return res.json() as Promise<GroqResponse>;
+  return res.json() as Promise<OpenRouterResponse>;
 }
 
 async function reviewChunk(
@@ -214,15 +214,15 @@ async function reviewChunk(
   fetchFn: typeof fetch,
   sleepFn: SleepFn
 ): Promise<ReviewResult> {
-  const messages: GroqMessage[] = [{ role: 'user', content: buildPrompt(context) }];
+  const messages: OpenRouterMessage[] = [{ role: 'user', content: buildPrompt(context) }];
 
-  const response = await callGroq(apiKey, messages, fetchFn, sleepFn);
+  const response = await callOpenRouter(apiKey, messages, fetchFn, sleepFn);
   const tokensUsed = response.usage.prompt_tokens + response.usage.completion_tokens;
 
   try {
     return { findings: resolveFindings(context, parseFindings(response)), tokensUsed };
   } catch {
-    const retryMessages: GroqMessage[] = [
+    const retryMessages: OpenRouterMessage[] = [
       ...messages,
       {
         role: 'assistant',
@@ -233,7 +233,7 @@ async function reviewChunk(
         content: 'Kết quả không đúng format yêu cầu. Hãy gọi lại tool submit_findings với đúng schema.',
       },
     ];
-    const retryResponse = await callGroq(apiKey, retryMessages, fetchFn, sleepFn);
+    const retryResponse = await callOpenRouter(apiKey, retryMessages, fetchFn, sleepFn);
     const retryTokensUsed = tokensUsed + retryResponse.usage.prompt_tokens + retryResponse.usage.completion_tokens;
     return { findings: resolveFindings(context, parseFindings(retryResponse)), tokensUsed: retryTokensUsed };
   }
@@ -262,7 +262,7 @@ export async function reviewDiff(
       // this file was written to fix, just for a different trigger).
       if (i === 0) throw err;
       throw new PartialReviewError(
-        `Groq review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
+        `OpenRouter review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
         { findings, tokensUsed },
         err
       );

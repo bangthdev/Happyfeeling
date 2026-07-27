@@ -19,7 +19,11 @@ const tokenProvider = createInstallationTokenProvider(
 createReviewWorker((job) =>
   processReviewJob(job, {
     runPipeline: runReviewPipeline,
-    pipelineDeps: { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey, filterNewFindings },
+    pipelineDeps: {
+      getToken: () => tokenProvider.getToken(),
+      openrouterApiKey: config.openrouterApiKey,
+      filterNewFindings,
+    },
   })
 );
 

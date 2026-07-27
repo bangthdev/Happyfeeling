@@ -25,7 +25,7 @@ describe('processReviewJob', () => {
 
   it('calls runPipeline with an event built from the job payload', async () => {
     const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
 
     await processReviewJob(
       fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
@@ -44,7 +44,7 @@ describe('processReviewJob', () => {
       { file: 'src/y.ts', line: 20, severity: 'low' as const, message: 'another', suggestion: 'fix2' },
     ];
     const runPipeline = vi.fn().mockResolvedValue({ posted });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
 
     await processReviewJob(
       fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
@@ -79,7 +79,7 @@ describe('processReviewJob', () => {
 
   it('writes no rows when nothing was posted', async () => {
     const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
 
     await processReviewJob(
       fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
@@ -93,7 +93,7 @@ describe('processReviewJob', () => {
     const posted = [{ file: 'src/x.ts', line: 10, severity: 'high' as const, message: 'bug', suggestion: 'fix' }];
     const partialPostError = new PartialPostError('Failed to post 1 of 2 finding(s) for PR #7', posted);
     const runPipeline = vi.fn().mockRejectedValue(partialPostError);
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
 
     await expect(
       processReviewJob(fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }), {
@@ -111,7 +111,7 @@ describe('processReviewJob', () => {
 
   it('re-throws non-PartialPostError failures from runPipeline without persisting anything', async () => {
     const runPipeline = vi.fn().mockRejectedValue(new Error('network down'));
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
 
     await expect(
       processReviewJob(fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }), {
@@ -129,7 +129,7 @@ describe('processReviewJob', () => {
       { file: 'src/y.ts', line: 20, severity: 'low' as const, message: 'm2', suggestion: 's2' },
     ];
     const runPipeline = vi.fn().mockResolvedValue({ posted });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
     vi.mocked(prisma.finding.createMany).mockResolvedValueOnce({ count: 1 });
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -146,7 +146,7 @@ describe('processReviewJob', () => {
     const posted = [{ file: 'src/x.ts', line: 10, severity: 'high' as const, message: 'bug', suggestion: 'fix' }];
     const partialPostError = new PartialPostError('Failed to post 1 of 2 finding(s) for PR #7', posted);
     const runPipeline = vi.fn().mockRejectedValue(partialPostError);
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key', filterNewFindings: vi.fn() };
+    const pipelineDeps = { getToken: vi.fn(), openrouterApiKey: 'fake-key', filterNewFindings: vi.fn() };
     vi.mocked(prisma.finding.createMany).mockRejectedValueOnce(new Error('connection reset'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 

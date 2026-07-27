@@ -6,7 +6,7 @@ const REQUIRED_KEYS = [
   'GITHUB_PRIVATE_KEY',
   'GITHUB_INSTALLATION_ID',
   'GITHUB_WEBHOOK_SECRET',
-  'GROQ_API_KEY',
+  'OPENROUTER_API_KEY',
 ];
 
 describe('loadConfig', () => {
@@ -25,7 +25,7 @@ describe('loadConfig', () => {
     const config = loadConfig();
     expect(config.port).toBe(4000);
     expect(config.githubAppId).toBe('test-GITHUB_APP_ID');
-    expect(config.groqApiKey).toBe('test-GROQ_API_KEY');
+    expect(config.openrouterApiKey).toBe('test-OPENROUTER_API_KEY');
   });
 
   it('defaults port to 3000 when not set', () => {

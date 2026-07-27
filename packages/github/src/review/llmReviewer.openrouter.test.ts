@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { reviewDiff, PartialReviewError } from './llmReviewer.groq.js';
+import { reviewDiff, PartialReviewError } from './llmReviewer.openrouter.js';
 
 function fakeFetch(impl: (...args: any[]) => Promise<any>): typeof fetch {
   return vi.fn(impl) as unknown as typeof fetch;
 }
 
-describe('reviewDiff (Groq)', () => {
+describe('reviewDiff (OpenRouter)', () => {
   it('sets temperature to 0 for deterministic output', async () => {
     const fetchFn = fakeFetch(async () => ({
       ok: true,
@@ -28,6 +28,7 @@ describe('reviewDiff (Groq)', () => {
     const [, requestInit] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse((requestInit as RequestInit).body as string);
     expect(body.temperature).toBe(0);
+    expect(body.model).toBe('anthropic/claude-haiku-4.5');
   });
 
   it('drops a finding when codeSnippet cannot be matched in the diff', async () => {
@@ -530,8 +531,11 @@ diff --git a/src/other.ts b/src/other.ts
     await expect(promise).rejects.toThrow('401');
   });
 
-  it('splits an oversized diff into multiple Groq calls, merges findings, sums tokens, and delays between calls', async () => {
-    const bigLine = '+'.repeat(30000);
+  // MAX_TOKENS_PER_CHUNK is 100000 (vs Groq's 6000) since OpenRouter/Claude
+  // has no comparable per-minute token ceiling — each file here needs to be
+  // large enough on its own that two of them together exceed the cap.
+  it('splits an oversized diff into multiple OpenRouter calls, merges findings, sums tokens, and delays between calls', async () => {
+    const bigLine = '+'.repeat(220000);
     const bigLineContent = bigLine.slice(1);
     const bigFile = (path: string) => `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${bigLine}\n`;
     const diff = bigFile('a.ts') + bigFile('b.ts');
@@ -624,7 +628,7 @@ diff --git a/src/other.ts b/src/other.ts
   });
 
   it('throws a PartialReviewError carrying findings already collected when a later chunk fails', async () => {
-    const bigLine = '+'.repeat(30000);
+    const bigLine = '+'.repeat(220000);
     const bigLineContent = bigLine.slice(1);
     const bigFile = (path: string) => `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${bigLine}\n`;
     const diff = bigFile('a.ts') + bigFile('b.ts');

@@ -28,8 +28,10 @@ cp .env.example .env
 - `GITHUB_PRIVATE_KEY` — nội dung file `.pem` ở bước 7, giữ nguyên `\n` xuống dòng
 - `GITHUB_INSTALLATION_ID` — ở bước 8
 - `GITHUB_WEBHOOK_SECRET` — chuỗi bí mật ở bước 3
-- `GROQ_API_KEY` — API key Groq của bạn (**TẠM THỜI** thay cho Claude/Anthropic để test free —
-  xem comment `// TEMP:` trong `src/config.ts`, `src/pipeline.ts`, `src/index.ts` để revert lại Claude)
+- `OPENROUTER_API_KEY` — API key OpenRouter của bạn. Bot review dùng model
+  `anthropic/claude-haiku-4.5` qua OpenRouter (xem
+  `packages/github/src/review/llmReviewer.openrouter.ts`) — đổi model bằng cách
+  sửa hằng số `OPENROUTER_MODEL` trong file đó.
 - `LINEAR_API_KEY` — chỉ cần nếu chạy script sync issue ở `scripts/` (Personal API Key, Linear
   Settings > API), **không bắt buộc** để chạy bot chính
 

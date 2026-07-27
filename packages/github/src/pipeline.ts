@@ -1,9 +1,6 @@
 import { getPullRequestDiff } from './github/client.js';
 import { buildContext } from './review/contextBuilder.js';
-// TEMP: swapped from './review/llmReviewer.js' (Claude) to test free via Groq.
-// To revert: import reviewDiff from llmReviewer.js again and change
-// PipelineDeps.groqApiKey back to anthropicClient: Anthropic.
-import { reviewDiff, PartialReviewError } from './review/llmReviewer.groq.js';
+import { reviewDiff, PartialReviewError } from './review/llmReviewer.openrouter.js';
 import type { Finding } from './review/llmReviewer.js';
 import { postFindings } from './review/commentPoster.js';
 import { logMetrics } from './logger.js';
@@ -13,7 +10,7 @@ export type { Finding };
 
 export interface PipelineDeps {
   getToken: () => Promise<string>;
-  groqApiKey: string;
+  openrouterApiKey: string;
   filterNewFindings: (repo: string, prNumber: number, findings: Finding[]) => Promise<Finding[]>;
 }
 
@@ -45,12 +42,12 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
   let findings: Finding[];
   let tokensUsed: number;
   try {
-    ({ findings, tokensUsed } = await reviewDiff(context, deps.groqApiKey));
+    ({ findings, tokensUsed } = await reviewDiff(context, deps.openrouterApiKey));
   } catch (err) {
     if (!(err instanceof PartialReviewError)) throw err;
     ({ findings, tokensUsed } = err.partialResult);
     console.error(
-      `PR #${event.prNumber}: Groq review failed partway through — posting the ${findings.length} finding(s) already collected instead of discarding them`,
+      `PR #${event.prNumber}: OpenRouter review failed partway through — posting the ${findings.length} finding(s) already collected instead of discarding them`,
       err.cause
     );
   }
