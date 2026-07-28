@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { createReviewQueue } from './queue.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { afterEach, describe, expect, it } from "vitest";
+import { createReviewQueue } from "./queue.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
-describe('createReviewQueue', () => {
+describe("createReviewQueue", () => {
   const queue = createReviewQueue();
 
   afterEach(async () => {
@@ -10,12 +10,12 @@ describe('createReviewQueue', () => {
     await queue.close();
   });
 
-  it('applies defaultJobOptions with attempts: 1 (no retry)', async () => {
+  it("applies defaultJobOptions with attempts: 1 (no retry)", async () => {
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 42,
-      headSha: 'abc123',
+      headSha: "abc123",
     };
 
     const job = await queue.add(REVIEW_QUEUE_NAME, payload);

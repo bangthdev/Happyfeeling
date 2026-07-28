@@ -4,35 +4,39 @@ Nguồn ý tưởng gốc: [2026-07-06-ai-code-review-bot.html](https://gistcdn.
 
 ## Quyết định đã chốt
 
-| Hạng mục | Quyết định |
-|---|---|
-| Project | Riêng biệt, không nằm trong b3-mono |
-| Ngôn ngữ | TypeScript/Node |
-| LLM | Claude API (Anthropic) |
-| Hạ tầng test | Chạy local + ngrok/tunnel trước, deploy sau |
-| GitHub auth | GitHub App (không dùng PAT cho production) |
-| Repo test | 1 repo cá nhân đã có sẵn |
-| Lưu metrics (MVP) | Console/file log — **KHÔNG** dùng DB ở giai đoạn MVP |
+| Hạng mục               | Quyết định                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Project                | Riêng biệt, không nằm trong b3-mono                                               |
+| Ngôn ngữ               | TypeScript/Node                                                                   |
+| LLM                    | Claude API (Anthropic)                                                            |
+| Hạ tầng test           | Chạy local + ngrok/tunnel trước, deploy sau                                       |
+| GitHub auth            | GitHub App (không dùng PAT cho production)                                        |
+| Repo test              | 1 repo cá nhân đã có sẵn                                                          |
+| Lưu metrics (MVP)      | Console/file log — **KHÔNG** dùng DB ở giai đoạn MVP                              |
 | Context strategy (MVP) | Static Context Builder — bỏ qua Agentic Session (clone + sandbox) ở giai đoạn đầu |
 
 ## Checklist khái niệm cần học
 
 ### Chung — bắt buộc học dù chọn cách auth nào
+
 - [ ] **Webhook payload** — cấu trúc JSON GitHub gửi khi có PR event (action, PR number, diff_url...)
 - [ ] **Webhook signature verification** — verify HMAC-SHA256 để chắc request thật từ GitHub
 - [ ] **GitHub REST API cơ bản** — endpoint lấy diff, endpoint post review comment, rate-limit headers
 - [ ] **Diff hunk line-position** — GitHub tính vị trí comment theo số dòng trong unified diff hunk, KHÔNG phải số dòng trong file gốc (lỗi hay gặp nhất)
 
 ### Riêng cho GitHub App (đã chọn)
+
 - [ ] **JWT (JSON Web Token)** — tự ký bằng private key để chứng minh danh tính app
 - [ ] **Installation token** — đổi từ JWT, sống ~1h, dùng để gọi API
 - [ ] **Permission scoping** — khai báo app chỉ được quyền gì khi đăng ký
 - [ ] **Token refresh** — tự xin cấp lại khi installation token hết hạn
 
 ### Bonus — nên biết để test nhanh
+
 - [ ] **PAT (Personal Access Token)** — dùng để test tay bằng `curl` trước khi code chính thức, tránh vừa debug JWT vừa debug API cùng lúc
 
 ### Giai đoạn 2 (KHÔNG phải MVP — làm sau khi pipeline chạy ổn)
+
 - [ ] SQLite — lưu metrics có cấu trúc để làm dashboard
 - [ ] Agentic Session (clone + sandbox) — agent tự grep/đọc code thay vì static context builder
 - [ ] Tích hợp Linear (parse ticket ID, lấy acceptance criteria)
@@ -47,11 +51,13 @@ Nguồn ý tưởng gốc: [2026-07-06-ai-code-review-bot.html](https://gistcdn.
 **"Metrics" / instrumentation** = số liệu về quá trình bot chạy (không phải nội dung review): `{pr_number, findings_count, severity_breakdown, latency_ms, tokens_used, reactions}` — dùng để theo dõi bot hoạt động tốt không.
 
 ## Câu hỏi đang mở (chưa chốt)
+
 - [ ] Chi tiết pipeline: cấu trúc project (folder layout), package quản lý webhook (Express? Fastify?)
 
 ## Tiến độ (2026-07-09) — MVP đã chạy được end-to-end
 
 **Đã xong:**
+
 - 13 task trong `docs/superpowers/plans/2026-07-09-ai-code-review-bot-mvp.md` — code hoàn chỉnh, 38/38 test pass
 - Repo GitHub: https://github.com/nhd98z2/Happyfeeling (private)
 - Tạo GitHub App thật (App ID `4254577`, installed vào chính repo `Happyfeeling` — dogfooding), cấu hình webhook + private key trong `.env`
@@ -75,6 +81,7 @@ Test với file `sandbox/sample.ts` (cố tình có 3 lỗi: SQL injection, thi�
   2. Groq (`llama-3.3-70b-versatile`) là model nhỏ/nhanh, không mạnh bằng Claude ở việc suy luận nhiều vấn đề cùng lúc trong 1 lần review
 
 **Việc cần làm khi quay lại (mai):**
+
 - [ ] Khi có credit Claude thật → revert 3 chỗ TEMP, chạy lại đúng PR test trên `sandbox/sample.ts` để so sánh Claude bắt được bao nhiêu/3 lỗi — đây là bằng chứng thực tế cho quyết định "Claude có đáng trả tiền hơn Groq không"
 - [ ] Cân nhắc tune lại prompt — câu "bỏ qua nitpick" có thể đang khiến bot bỏ sót bug thật, không chỉ style
 - [ ] Dọn PR test #1 + branch `test/trigger-review-bot` khi không cần nữa (`gh pr close 1 --delete-branch`)

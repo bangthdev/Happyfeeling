@@ -32,10 +32,12 @@
 ### Task 1: `runReviewPipeline` returns the posted findings
 
 **Files:**
+
 - Modify: `packages/github/src/pipeline.ts`
 - Modify: `packages/github/src/pipeline.test.ts`
 
 **Interfaces:**
+
 - Produces: `export interface PipelineResult { posted: Finding[] }`, `runReviewPipeline(event: PullRequestEvent, deps: PipelineDeps): Promise<PipelineResult>` (was `Promise<void>`). Also re-exports `Finding` from this module (`export type { Finding }`) so consumers can import it from `@happyfeeling/github/pipeline` without a new export entry.
 
 - [ ] **Step 1: Update the first test to assert on the return value**
@@ -43,31 +45,45 @@
 In `packages/github/src/pipeline.test.ts`, change the first test (`'orchestrates diff fetch, review, comment posting, and metrics logging'`) — replace:
 
 ```ts
-    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+await runReviewPipeline(event, { getToken, groqApiKey: "fake-groq-key" });
 ```
 
 with:
 
 ```ts
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+const result = await runReviewPipeline(event, {
+  getToken,
+  groqApiKey: "fake-groq-key",
+});
 
-    expect(result).toEqual({
-      posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
-    });
+expect(result).toEqual({
+  posted: [
+    {
+      file: "src/x.ts",
+      line: 1,
+      severity: "high",
+      message: "m",
+      suggestion: "s",
+    },
+  ],
+});
 ```
 
 Also update the third test (`'still posts and logs the findings collected before a partial review failure'`) — replace:
 
 ```ts
-    await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+await runReviewPipeline(event, { getToken, groqApiKey: "fake-groq-key" });
 ```
 
 with:
 
 ```ts
-    const result = await runReviewPipeline(event, { getToken, groqApiKey: 'fake-groq-key' });
+const result = await runReviewPipeline(event, {
+  getToken,
+  groqApiKey: "fake-groq-key",
+});
 
-    expect(result).toEqual({ posted: partialFindings });
+expect(result).toEqual({ posted: partialFindings });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -80,16 +96,16 @@ Expected: FAIL — the two updated tests fail because `runReviewPipeline` curren
 In `packages/github/src/pipeline.ts`, add the re-export and result type, and return `{ posted }` at the end:
 
 ```ts
-import { getPullRequestDiff } from './github/client.js';
-import { buildContext } from './review/contextBuilder.js';
+import { getPullRequestDiff } from "./github/client.js";
+import { buildContext } from "./review/contextBuilder.js";
 // TEMP: swapped from './review/llmReviewer.js' (Claude) to test free via Groq.
 // To revert: import reviewDiff from llmReviewer.js again and change
 // PipelineDeps.groqApiKey back to anthropicClient: Anthropic.
-import { reviewDiff, PartialReviewError } from './review/llmReviewer.groq.js';
-import type { Finding } from './review/llmReviewer.js';
-import { postFindings } from './review/commentPoster.js';
-import { logMetrics } from './logger.js';
-import type { PullRequestEvent } from './webhook/parse.js';
+import { reviewDiff, PartialReviewError } from "./review/llmReviewer.groq.js";
+import type { Finding } from "./review/llmReviewer.js";
+import { postFindings } from "./review/commentPoster.js";
+import { logMetrics } from "./logger.js";
+import type { PullRequestEvent } from "./webhook/parse.js";
 
 export type { Finding };
 
@@ -102,11 +118,19 @@ export interface PipelineResult {
   posted: Finding[];
 }
 
-export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineDeps): Promise<PipelineResult> {
+export async function runReviewPipeline(
+  event: PullRequestEvent,
+  deps: PipelineDeps,
+): Promise<PipelineResult> {
   const start = Date.now();
 
   const token = await deps.getToken();
-  const rawDiff = await getPullRequestDiff(token, event.owner, event.repo, event.prNumber);
+  const rawDiff = await getPullRequestDiff(
+    token,
+    event.owner,
+    event.repo,
+    event.prNumber,
+  );
   const context = buildContext(rawDiff);
 
   let findings: Finding[];
@@ -118,7 +142,7 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
     ({ findings, tokensUsed } = err.partialResult);
     console.error(
       `PR #${event.prNumber}: Groq review failed partway through — posting the ${findings.length} finding(s) already collected instead of discarding them`,
-      err.cause
+      err.cause,
     );
   }
 
@@ -133,7 +157,8 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
 
   const severityBreakdown: Record<string, number> = {};
   for (const finding of findings) {
-    severityBreakdown[finding.severity] = (severityBreakdown[finding.severity] ?? 0) + 1;
+    severityBreakdown[finding.severity] =
+      (severityBreakdown[finding.severity] ?? 0) + 1;
   }
 
   logMetrics({
@@ -146,7 +171,9 @@ export async function runReviewPipeline(event: PullRequestEvent, deps: PipelineD
 
   if (failed.length > 0) {
     const attempted = posted.length + failed.length;
-    throw new Error(`Failed to post ${failed.length} of ${attempted} finding(s) for PR #${event.prNumber}`);
+    throw new Error(
+      `Failed to post ${failed.length} of ${attempted} finding(s) for PR #${event.prNumber}`,
+    );
   }
 
   return { posted };
@@ -173,42 +200,44 @@ posted so it can write matching Finding rows to Postgres."
 ### Task 2: `computeDedupHash` helper + export subpath
 
 **Files:**
+
 - Create: `packages/github/src/review/dedup.ts`
 - Create: `packages/github/src/review/dedup.test.ts`
 - Modify: `packages/github/package.json`
 
 **Interfaces:**
+
 - Produces: `computeDedupHash(repo: string, filePath: string, line: number): string`, importable from `@happyfeeling/github/review/dedup`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // packages/github/src/review/dedup.test.ts
-import { describe, it, expect } from 'vitest';
-import { computeDedupHash } from './dedup.js';
+import { describe, it, expect } from "vitest";
+import { computeDedupHash } from "./dedup.js";
 
-describe('computeDedupHash', () => {
-  it('returns the same hash for the same repo/filePath/line', () => {
-    const a = computeDedupHash('acme/widgets', 'src/x.ts', 10);
-    const b = computeDedupHash('acme/widgets', 'src/x.ts', 10);
+describe("computeDedupHash", () => {
+  it("returns the same hash for the same repo/filePath/line", () => {
+    const a = computeDedupHash("acme/widgets", "src/x.ts", 10);
+    const b = computeDedupHash("acme/widgets", "src/x.ts", 10);
     expect(a).toBe(b);
   });
 
-  it('returns a different hash when the line differs', () => {
-    const a = computeDedupHash('acme/widgets', 'src/x.ts', 10);
-    const b = computeDedupHash('acme/widgets', 'src/x.ts', 11);
+  it("returns a different hash when the line differs", () => {
+    const a = computeDedupHash("acme/widgets", "src/x.ts", 10);
+    const b = computeDedupHash("acme/widgets", "src/x.ts", 11);
     expect(a).not.toBe(b);
   });
 
-  it('returns a different hash when the file path differs', () => {
-    const a = computeDedupHash('acme/widgets', 'src/x.ts', 10);
-    const b = computeDedupHash('acme/widgets', 'src/y.ts', 10);
+  it("returns a different hash when the file path differs", () => {
+    const a = computeDedupHash("acme/widgets", "src/x.ts", 10);
+    const b = computeDedupHash("acme/widgets", "src/y.ts", 10);
     expect(a).not.toBe(b);
   });
 
-  it('returns a different hash when the repo differs', () => {
-    const a = computeDedupHash('acme/widgets', 'src/x.ts', 10);
-    const b = computeDedupHash('acme/other', 'src/x.ts', 10);
+  it("returns a different hash when the repo differs", () => {
+    const a = computeDedupHash("acme/widgets", "src/x.ts", 10);
+    const b = computeDedupHash("acme/other", "src/x.ts", 10);
     expect(a).not.toBe(b);
   });
 });
@@ -223,10 +252,16 @@ Expected: FAIL — `Cannot find module './dedup.js'`.
 
 ```ts
 // packages/github/src/review/dedup.ts
-import { createHash } from 'node:crypto';
+import { createHash } from "node:crypto";
 
-export function computeDedupHash(repo: string, filePath: string, line: number): string {
-  return createHash('sha256').update(`${repo}:${filePath}:${line}`).digest('hex');
+export function computeDedupHash(
+  repo: string,
+  filePath: string,
+  line: number,
+): string {
+  return createHash("sha256")
+    .update(`${repo}:${filePath}:${line}`)
+    .digest("hex");
 }
 ```
 
@@ -268,11 +303,13 @@ the full dedup-or-skip logic (checking before insert) is AIC-31."
 ### Task 3: Make `@happyfeeling/db` an importable package
 
 **Files:**
+
 - Create: `packages/db/src/index.ts`
 - Create: `packages/db/src/index.test.ts`
 - Modify: `packages/db/package.json`
 
 **Interfaces:**
+
 - Produces: `prisma` (the shared Prisma client singleton), importable from `@happyfeeling/db`.
 
 **Context:** `packages/db` currently has no `main`/`exports`/`build` — it's only ever run directly via `tsx`/`vitest` (`seed.ts`, `seed.test.ts`), never imported by another package. `apps/worker` is the first consumer, so it needs a real entry point and a build step, matching the pattern already used by `packages/config`, `packages/queue`, and `packages/github`.
@@ -281,11 +318,11 @@ the full dedup-or-skip logic (checking before insert) is AIC-31."
 
 ```ts
 // packages/db/src/index.test.ts
-import { describe, it, expect } from 'vitest';
-import { prisma } from './index.js';
+import { describe, it, expect } from "vitest";
+import { prisma } from "./index.js";
 
-describe('index', () => {
-  it('exports the shared prisma client', () => {
+describe("index", () => {
+  it("exports the shared prisma client", () => {
     expect(prisma).toBeDefined();
     expect(prisma.finding).toBeDefined();
   });
@@ -301,7 +338,7 @@ Expected: FAIL — `Cannot find module './index.js'`.
 
 ```ts
 // packages/db/src/index.ts
-export { prisma } from './client.js';
+export { prisma } from "./client.js";
 ```
 
 - [ ] **Step 4: Add build config to `package.json`**
@@ -364,11 +401,13 @@ other workspace packages already have."
 ### Task 4: Scaffold `apps/worker`
 
 **Files:**
+
 - Create: `apps/worker/package.json`
 - Create: `apps/worker/tsconfig.json`
 - Create: `apps/worker/vitest.config.ts`
 
 **Interfaces:**
+
 - Produces: a new workspace package `@happyfeeling/worker` (no runtime code yet — that's Tasks 5–7).
 
 - [ ] **Step 1: Create `package.json`**
@@ -419,11 +458,11 @@ other workspace packages already have."
 - [ ] **Step 3: Create `vitest.config.ts`**
 
 ```ts
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: "node",
     fileParallelism: false,
   },
 });
@@ -451,10 +490,12 @@ next tasks can add source files against a working build/test setup."
 ### Task 5: `processReviewJob` — pipeline result to DB rows
 
 **Files:**
+
 - Create: `apps/worker/src/processJob.ts`
 - Create: `apps/worker/src/processJob.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PipelineDeps`, `PipelineResult`, `Finding` from `@happyfeeling/github/pipeline`; `PullRequestEvent` from `@happyfeeling/github/webhook/parse`; `computeDedupHash` from `@happyfeeling/github/review/dedup`; `prisma` from `@happyfeeling/db`; `ReviewJobPayload` from `@happyfeeling/queue`.
 - Produces: `interface ProcessJobDeps { runPipeline: (event: PullRequestEvent, deps: PipelineDeps) => Promise<PipelineResult>; pipelineDeps: PipelineDeps }`, `processReviewJob(job: Job<ReviewJobPayload>, deps: ProcessJobDeps): Promise<void>` — Task 7 wires this to the real `runReviewPipeline`; Task 6 tests it against a real queue/worker.
 
@@ -462,74 +503,86 @@ next tasks can add source files against a working build/test setup."
 
 ```ts
 // apps/worker/src/processJob.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Job } from 'bullmq';
-import type { ReviewJobPayload } from '@happyfeeling/queue';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Job } from "bullmq";
+import type { ReviewJobPayload } from "@happyfeeling/queue";
 
-vi.mock('@happyfeeling/db', () => ({
+vi.mock("@happyfeeling/db", () => ({
   prisma: { finding: { create: vi.fn() } },
 }));
 
-import { prisma } from '@happyfeeling/db';
-import { processReviewJob } from './processJob.js';
+import { prisma } from "@happyfeeling/db";
+import { processReviewJob } from "./processJob.js";
 
 function fakeJob(data: ReviewJobPayload): Job<ReviewJobPayload> {
   return { data } as Job<ReviewJobPayload>;
 }
 
-describe('processReviewJob', () => {
+describe("processReviewJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('calls runPipeline with an event built from the job payload', async () => {
+  it("calls runPipeline with an event built from the job payload", async () => {
     const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key' };
+    const pipelineDeps = { getToken: vi.fn(), groqApiKey: "fake-key" };
 
     await processReviewJob(
-      fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
-      { runPipeline, pipelineDeps }
+      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
+      { runPipeline, pipelineDeps },
     );
 
     expect(runPipeline).toHaveBeenCalledWith(
-      { owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1', action: 'synchronize' },
-      pipelineDeps
+      {
+        owner: "acme",
+        repo: "widgets",
+        prNumber: 7,
+        headSha: "sha1",
+        action: "synchronize",
+      },
+      pipelineDeps,
     );
   });
 
-  it('writes one Finding row per posted finding', async () => {
+  it("writes one Finding row per posted finding", async () => {
     const posted = [
-      { file: 'src/x.ts', line: 10, severity: 'high' as const, message: 'bug here', suggestion: 'fix it' },
+      {
+        file: "src/x.ts",
+        line: 10,
+        severity: "high" as const,
+        message: "bug here",
+        suggestion: "fix it",
+      },
     ];
     const runPipeline = vi.fn().mockResolvedValue({ posted });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key' };
+    const pipelineDeps = { getToken: vi.fn(), groqApiKey: "fake-key" };
 
     await processReviewJob(
-      fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
-      { runPipeline, pipelineDeps }
+      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
+      { runPipeline, pipelineDeps },
     );
 
     expect(prisma.finding.create).toHaveBeenCalledTimes(1);
     expect(prisma.finding.create).toHaveBeenCalledWith({
       data: {
-        repo: 'acme/widgets',
+        repo: "acme/widgets",
         prNumber: 7,
-        filePath: 'src/x.ts',
+        filePath: "src/x.ts",
         line: 10,
-        errorType: 'high',
-        message: 'bug here',
+        errorType: "high",
+        message: "bug here",
         dedupHash: expect.any(String),
       },
     });
   });
 
-  it('writes no rows when nothing was posted', async () => {
+  it("writes no rows when nothing was posted", async () => {
     const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = { getToken: vi.fn(), groqApiKey: 'fake-key' };
+    const pipelineDeps = { getToken: vi.fn(), groqApiKey: "fake-key" };
 
     await processReviewJob(
-      fakeJob({ owner: 'acme', repo: 'widgets', prNumber: 7, headSha: 'sha1' }),
-      { runPipeline, pipelineDeps }
+      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
+      { runPipeline, pipelineDeps },
     );
 
     expect(prisma.finding.create).not.toHaveBeenCalled();
@@ -546,15 +599,22 @@ Expected: FAIL — `Cannot find module './processJob.js'`.
 
 ```ts
 // apps/worker/src/processJob.ts
-import type { Job } from 'bullmq';
-import type { ReviewJobPayload } from '@happyfeeling/queue';
-import type { Finding, PipelineDeps, PipelineResult } from '@happyfeeling/github/pipeline';
-import type { PullRequestEvent } from '@happyfeeling/github/webhook/parse';
-import { computeDedupHash } from '@happyfeeling/github/review/dedup';
-import { prisma } from '@happyfeeling/db';
+import type { Job } from "bullmq";
+import type { ReviewJobPayload } from "@happyfeeling/queue";
+import type {
+  Finding,
+  PipelineDeps,
+  PipelineResult,
+} from "@happyfeeling/github/pipeline";
+import type { PullRequestEvent } from "@happyfeeling/github/webhook/parse";
+import { computeDedupHash } from "@happyfeeling/github/review/dedup";
+import { prisma } from "@happyfeeling/db";
 
 export interface ProcessJobDeps {
-  runPipeline: (event: PullRequestEvent, deps: PipelineDeps) => Promise<PipelineResult>;
+  runPipeline: (
+    event: PullRequestEvent,
+    deps: PipelineDeps,
+  ) => Promise<PipelineResult>;
   pipelineDeps: PipelineDeps;
 }
 
@@ -570,16 +630,27 @@ function toDbFinding(repoSlug: string, prNumber: number, finding: Finding) {
   };
 }
 
-export async function processReviewJob(job: Job<ReviewJobPayload>, deps: ProcessJobDeps): Promise<void> {
+export async function processReviewJob(
+  job: Job<ReviewJobPayload>,
+  deps: ProcessJobDeps,
+): Promise<void> {
   const { owner, repo, prNumber, headSha } = job.data;
   // `action` isn't read anywhere inside runReviewPipeline — a fixed value satisfies the type.
-  const event: PullRequestEvent = { owner, repo, prNumber, headSha, action: 'synchronize' };
+  const event: PullRequestEvent = {
+    owner,
+    repo,
+    prNumber,
+    headSha,
+    action: "synchronize",
+  };
 
   const { posted } = await deps.runPipeline(event, deps.pipelineDeps);
 
   const repoSlug = `${owner}/${repo}`;
   for (const finding of posted) {
-    await prisma.finding.create({ data: toDbFinding(repoSlug, prNumber, finding) });
+    await prisma.finding.create({
+      data: toDbFinding(repoSlug, prNumber, finding),
+    });
   }
 }
 ```
@@ -605,9 +676,11 @@ real runReviewPipeline."
 ### Task 6: Integration test — real queue + real Postgres
 
 **Files:**
+
 - Create: `apps/worker/src/worker.integration.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createReviewQueue`, `createReviewWorker` from `@happyfeeling/queue`; `prisma` from `@happyfeeling/db`; `processReviewJob` from `./processJob.js` (Task 5).
 
 **Requires running locally:** `docker compose up -d postgres redis` (from the repo root) before this test — it talks to real Redis and real Postgres, not mocks.
@@ -616,12 +689,16 @@ real runReviewPipeline."
 
 ```ts
 // apps/worker/src/worker.integration.test.ts
-import { afterEach, describe, expect, it } from 'vitest';
-import { createReviewQueue, createReviewWorker, REVIEW_QUEUE_NAME } from '@happyfeeling/queue';
-import { prisma } from '@happyfeeling/db';
-import { processReviewJob } from './processJob.js';
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  createReviewQueue,
+  createReviewWorker,
+  REVIEW_QUEUE_NAME,
+} from "@happyfeeling/queue";
+import { prisma } from "@happyfeeling/db";
+import { processReviewJob } from "./processJob.js";
 
-describe('worker (real Redis + real Postgres)', () => {
+describe("worker (real Redis + real Postgres)", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
   let worker: ReturnType<typeof createReviewWorker> | undefined;
 
@@ -629,35 +706,53 @@ describe('worker (real Redis + real Postgres)', () => {
     await worker?.close();
     await queue?.obliterate({ force: true });
     await queue?.close();
-    await prisma.finding.deleteMany({ where: { repo: 'acme/integration-test' } });
+    await prisma.finding.deleteMany({
+      where: { repo: "acme/integration-test" },
+    });
   });
 
-  it('picks up an enqueued job and writes exactly one Finding row', async () => {
+  it("picks up an enqueued job and writes exactly one Finding row", async () => {
     queue = createReviewQueue();
     const posted = [
-      { file: 'src/x.ts', line: 5, severity: 'medium' as const, message: 'msg', suggestion: 'sugg' },
+      {
+        file: "src/x.ts",
+        line: 5,
+        severity: "medium" as const,
+        message: "msg",
+        suggestion: "sugg",
+      },
     ];
     const runPipeline = async () => ({ posted });
 
     worker = createReviewWorker((job) =>
-      processReviewJob(job, { runPipeline, pipelineDeps: { getToken: async () => 'tok', groqApiKey: 'k' } })
+      processReviewJob(job, {
+        runPipeline,
+        pipelineDeps: { getToken: async () => "tok", groqApiKey: "k" },
+      }),
     );
 
     const completed = new Promise<void>((resolve) => {
-      worker!.on('completed', () => resolve());
+      worker!.on("completed", () => resolve());
     });
 
     await queue.add(REVIEW_QUEUE_NAME, {
-      owner: 'acme',
-      repo: 'integration-test',
+      owner: "acme",
+      repo: "integration-test",
       prNumber: 1,
-      headSha: 'sha1',
+      headSha: "sha1",
     });
     await completed;
 
-    const rows = await prisma.finding.findMany({ where: { repo: 'acme/integration-test' } });
+    const rows = await prisma.finding.findMany({
+      where: { repo: "acme/integration-test" },
+    });
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ filePath: 'src/x.ts', line: 5, errorType: 'medium', message: 'msg' });
+    expect(rows[0]).toMatchObject({
+      filePath: "src/x.ts",
+      line: 5,
+      errorType: "medium",
+      message: "msg",
+    });
   });
 });
 ```
@@ -688,9 +783,11 @@ runPipeline so no real GitHub/Groq call is made."
 ### Task 7: `apps/worker/src/index.ts` — real bootstrap
 
 **Files:**
+
 - Create: `apps/worker/src/index.ts`
 
 **Interfaces:**
+
 - Consumes: `loadRootEnv` from `@happyfeeling/config`; `createReviewWorker` from `@happyfeeling/queue`; `runReviewPipeline` from `@happyfeeling/github/pipeline`; `createInstallationTokenProvider` from `@happyfeeling/github/github/auth`; `loadConfig` from `@happyfeeling/github/config`; `processReviewJob` from `./processJob.js` (Task 5).
 
 No dedicated test for this file — it's a thin composition root with no branching logic, same as `packages/github/src/index.ts`, which also has none; its behavior is already covered by Task 5's unit tests and Task 6's integration test.
@@ -699,31 +796,34 @@ No dedicated test for this file — it's a thin composition root with no branchi
 
 ```ts
 // apps/worker/src/index.ts
-import { loadRootEnv } from '@happyfeeling/config';
+import { loadRootEnv } from "@happyfeeling/config";
 
 loadRootEnv(import.meta.url);
 
-import { createReviewWorker } from '@happyfeeling/queue';
-import { runReviewPipeline } from '@happyfeeling/github/pipeline';
-import { createInstallationTokenProvider } from '@happyfeeling/github/github/auth';
-import { loadConfig } from '@happyfeeling/github/config';
-import { processReviewJob } from './processJob.js';
+import { createReviewWorker } from "@happyfeeling/queue";
+import { runReviewPipeline } from "@happyfeeling/github/pipeline";
+import { createInstallationTokenProvider } from "@happyfeeling/github/github/auth";
+import { loadConfig } from "@happyfeeling/github/config";
+import { processReviewJob } from "./processJob.js";
 
 const config = loadConfig();
 const tokenProvider = createInstallationTokenProvider(
   config.githubAppId,
   config.githubPrivateKey,
-  config.githubInstallationId
+  config.githubInstallationId,
 );
 
 createReviewWorker((job) =>
   processReviewJob(job, {
     runPipeline: runReviewPipeline,
-    pipelineDeps: { getToken: () => tokenProvider.getToken(), groqApiKey: config.groqApiKey },
-  })
+    pipelineDeps: {
+      getToken: () => tokenProvider.getToken(),
+      groqApiKey: config.groqApiKey,
+    },
+  }),
 );
 
-console.log('Worker listening for review jobs...');
+console.log("Worker listening for review jobs...");
 ```
 
 - [ ] **Step 2: Verify it builds**
@@ -753,6 +853,7 @@ processReviewJob and starts consuming the review queue."
 ### Task 8: Docker — `apps/worker/Dockerfile` + `docker-compose.yml`
 
 **Files:**
+
 - Create: `apps/worker/Dockerfile`
 - Modify: `docker-compose.yml`
 
@@ -786,21 +887,21 @@ CMD ["pnpm", "--filter", "@happyfeeling/worker", "start"]
 Add this block after the `web` service (before `volumes:`):
 
 ```yaml
-  worker:
-    build:
-      context: .
-      dockerfile: apps/worker/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
-      REDIS_URL: redis://redis:6379
-      GITHUB_APP_ID: ${GITHUB_APP_ID}
-      GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}
-      GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
-      GROQ_API_KEY: ${GROQ_API_KEY}
-    depends_on:
-      - postgres
-      - redis
+worker:
+  build:
+    context: .
+    dockerfile: apps/worker/Dockerfile
+  environment:
+    DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
+    REDIS_URL: redis://redis:6379
+    GITHUB_APP_ID: ${GITHUB_APP_ID}
+    GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}
+    GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID}
+    GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+    GROQ_API_KEY: ${GROQ_API_KEY}
+  depends_on:
+    - postgres
+    - redis
 ```
 
 (Docker Compose substitutes `${VAR}` from the root `.env` file itself at the host level — a separate mechanism from the app's own `dotenv`/`loadRootEnv` loading, and unaffected by `.dockerignore` excluding `.env` from the build context. This matches how `postgres`/`redis`/`web` already get their config today.)

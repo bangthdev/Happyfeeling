@@ -40,11 +40,13 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Vì sao đổi:** `position` (diff-relative) tính lại được mỗi khi diff đổi, dễ lệch dòng khi PR có thêm commit mới. `line`+`side` là field ổn định GitHub API hỗ trợ trực tiếp, không cần tự parse diff.
 
 **Interface bắt buộc:**
+
 - `postReviewComment` (`github/client.ts`): đổi tham số `position: number` → `line: number` + `side: 'LEFT' | 'RIGHT'`. Body gửi GitHub API đổi field `position` → `line` + `side`.
 - `postFindings` (`commentPoster.ts`): bỏ tham số `diff` (không cần tính position nữa). `side` luôn là `'RIGHT'` — vì `Finding.line` hiện tại chỉ bao giờ trỏ tới dòng còn tồn tại ở file mới (logic `mapLineToDiffPosition` cũ chỉ advance `newLine` trên dòng `+`/` `, chưa bao giờ trả dòng bị xoá), nên không có case `LEFT` cần xử lý ở bước này.
 - **Đổi `PostFindingsResult`:** từ `{ posted: number; skipped: number }` sang `{ posted: Finding[]; skipped: number }` — Track B (E3-4) cần biết **finding nào** đã post thành công để ghi đúng row vào DB, không chỉ đếm số lượng.
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm --filter @happyfeeling/github test` pass hết (test cũ của `client.test.ts`/`commentPoster.test.ts` cập nhật theo interface mới, test `diffPosition` đã xoá).
 - Test mới xác nhận request gửi tới GitHub API chứa `line`+`side`, không còn field `position`.
 
@@ -57,6 +59,7 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Phạm vi file:** Tạo mới `packages/queue/**`. Sửa `packages/github/package.json` (chỉ thêm field `exports`, không đổi gì khác).
 
 **Interface bắt buộc:**
+
 - Package `@happyfeeling/queue` export:
   - `REVIEW_QUEUE_NAME: string`
   - `interface ReviewJobPayload { owner: string; repo: string; prNumber: number; headSha: string }` — **không** có field `installationId`: code hiện tại (`createInstallationTokenProvider` trong `index.ts`) dùng 1 `GITHUB_INSTALLATION_ID` cố định từ env cho mọi request, không có chỗ nào lấy installation theo từng webhook event. Thêm field này vào payload là thừa cho scope Epic 3 (multi-tenant theo nhiều installation không nằm trong yêu cầu Epic 3/4) — nếu sau này thật sự cần, thêm lúc đó.
@@ -77,6 +80,7 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
   (Track A dùng `./webhook/verify`, `./webhook/parse`; Track B dùng `./pipeline`, `./github/auth`, `./config`, `./logger`. Không dùng `.` — entry đó tự chạy Express server khi import.)
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm --filter @happyfeeling/queue build` exit 0.
 - Test round-trip: `createReviewQueue().add(...)` rồi `createReviewWorker` nhận đúng job (chạy với Redis local từ `docker compose up -d redis` của Epic 1).
 - Test xác nhận `defaultJobOptions` có `attempts: 3` — cho processor throw lỗi giả 2 lần đầu, lần thứ 3 mới cho qua, job vẫn `completed` (không rơi vào `failed` sớm).
@@ -92,11 +96,13 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Phạm vi file:** `apps/web/app/api/webhook/route.ts` (mới), `apps/web/package.json` (thêm dep `@happyfeeling/queue`, `@happyfeeling/github`).
 
 **Interface bắt buộc:**
+
 - `POST /api/webhook`: đọc raw body bằng `req.text()` (KHÔNG `JSON.parse` trước khi verify — HMAC tính trên raw bytes), verify bằng `verifySignature` (từ `@happyfeeling/github/webhook/verify`), parse bằng `parsePullRequestEvent` (từ `@happyfeeling/github/webhook/parse`).
 - Nếu verify fail → `401`. Nếu event không liên quan (`parsePullRequestEvent` trả `null`) → `200`.
 - Nếu hợp lệ: `await createReviewQueue().add(REVIEW_QUEUE_NAME, payload)` rồi trả `202` ngay — không đợi pipeline chạy xong.
 
 **Tiêu chí nghiệm thu:**
+
 - Test gửi request có chữ ký hợp lệ → response `202` trong <300ms.
 - Sau khi gọi route, `createReviewQueue().getWaitingCount()` = 1, payload đúng field đã gửi.
 
@@ -111,12 +117,14 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Phạm vi file:** Tạo mới `apps/worker/**` (`package.json`, `tsconfig.json`, `src/index.ts`, `Dockerfile`). Sửa `docker-compose.yml` (thêm service `worker`).
 
 **Interface bắt buộc:**
+
 - `apps/worker/src/index.ts`: `createReviewWorker(processor)` — processor gọi `runReviewPipeline` (từ `@happyfeeling/github/pipeline`) với `deps` dựng từ `createInstallationTokenProvider` (`@happyfeeling/github/github/auth`) + `loadConfig` (`@happyfeeling/github/config`).
 - Sau khi `runReviewPipeline` post xong, lấy `result.posted` (mảng `Finding[]`, theo interface mới ở E3-1) và ghi từng finding thành 1 row `Finding` trong Postgres qua Prisma client dùng chung (export từ `@happyfeeling/db`, Epic 2 B3).
 - **Giữ lại `logMetrics`** (từ `@happyfeeling/github/logger`, Epic MVP cũ) — gọi đúng như `runReviewPipeline` đang làm hiện tại (đếm `findings_count`, `severity_breakdown`, `latency_ms`, `tokens_used`). Chuyển pipeline sang worker KHÔNG được làm mất log này — nếu bỏ sót, mất luôn observability đang có mà không ai để ý ngay.
 - `docker-compose.yml`: thêm service `worker` build từ `apps/worker/Dockerfile`, cùng network với `postgres`/`redis`.
 
 **Tiêu chí nghiệm thu:**
+
 - Enqueue 1 job giả (dùng `createReviewQueue().add(...)` từ test) với `reviewDiff`/`postReviewComment` mock — worker tự pick up, gọi đúng 1 lần, và `prisma.finding.findMany()` sau đó trả về đúng 1 row khớp dữ liệu mock.
 - Cùng test trên xác nhận `logMetrics` được gọi đúng 1 lần với `findings_count` khớp số finding mock.
 
@@ -151,10 +159,12 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Phạm vi file:** `packages/github/src/review/dedup.ts` (mới, export subpath `./review/dedup` — thêm 1 dòng vào `exports` map của `packages/github/package.json`), `apps/worker/src/index.ts` (sửa flow: lọc + upsert thay vì insert thẳng).
 
 **Interface bắt buộc:**
+
 - `computeDedupHash(repo: string, filePath: string, line: number): string` — hash tối thiểu theo (repo, filePath, line), khớp field unique `Finding.dedupHash` đã có sẵn trong schema (Epic 2). Không bắt buộc thêm field phân loại lỗi (`errorType`) cho MVP này — nếu thấy cần phân biệt 2 lỗi khác nhau trùng dòng, đó là quyết định mở rộng sau, không phải yêu cầu bắt buộc của task này.
 - Trước khi post 1 finding: query `prisma.finding.findUnique({ where: { dedupHash } })`. Nếu đã tồn tại → **không** gọi `postReviewComment`, chỉ `upsert` để cập nhật `lastSeenAt`. Nếu chưa tồn tại → post rồi tạo row mới.
 
 **Tiêu chí nghiệm thu:**
+
 - Test giả lập 2 lần review liên tiếp cùng PR, cùng 1 finding y hệt (cùng `repo`+`filePath`+`line`) → lần 2 số lần gọi `postReviewComment` (mock) = 0, nhưng `lastSeenAt` trong DB được cập nhật.
 
 ---
@@ -168,9 +178,11 @@ Tại thời điểm viết plan này, Epic 1 còn `AIC-20` (Docker Compose) ở
 **Phạm vi file:** `apps/web/app/api/webhook/route.ts` (chỉ thêm option `jobId` vào lệnh `.add()` đã có).
 
 **Interface bắt buộc:**
+
 - Khi enqueue: `queue.add(REVIEW_QUEUE_NAME, payload, { jobId: \`${owner}/${repo}#${prNumber}@${headSha}\` })`. BullMQ tự chặn thêm job trùng `jobId` còn active/waiting/completed gần đây — GitHub gửi lại (redeliver) đúng webhook cho cùng commit sẽ không tạo job thứ 2.
 
 **Tiêu chí nghiệm thu:**
+
 - Test gọi route 2 lần liên tiếp với payload y hệt (cùng `headSha`) → `createReviewQueue().getJobCounts()` chỉ thấy 1 job, không tăng lên 2.
 
 ---

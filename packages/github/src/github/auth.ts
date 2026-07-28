@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 export function createAppJWT(appId: string, privateKey: string): string {
   const now = Math.floor(Date.now() / 1000);
@@ -9,7 +9,7 @@ export function createAppJWT(appId: string, privateKey: string): string {
       iss: appId,
     },
     privateKey,
-    { algorithm: 'RS256' }
+    { algorithm: "RS256" },
   );
 }
 
@@ -21,19 +21,24 @@ export interface InstallationToken {
 export async function fetchInstallationToken(
   appJwt: string,
   installationId: string,
-  fetchFn: typeof fetch = fetch
+  fetchFn: typeof fetch = fetch,
 ): Promise<InstallationToken> {
-  const res = await fetchFn(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${appJwt}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
+  const res = await fetchFn(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${appJwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  });
+  );
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch installation token: ${res.status} ${await res.text()}`);
+    throw new Error(
+      `Failed to fetch installation token: ${res.status} ${await res.text()}`,
+    );
   }
 
   const data = await res.json();
@@ -47,7 +52,7 @@ export function createInstallationTokenProvider(
   deps: {
     fetchToken?: typeof fetchInstallationToken;
     createJwt?: typeof createAppJWT;
-  } = {}
+  } = {},
 ): { getToken(): Promise<string> } {
   const fetchToken = deps.fetchToken ?? fetchInstallationToken;
   const createJwt = deps.createJwt ?? createAppJWT;

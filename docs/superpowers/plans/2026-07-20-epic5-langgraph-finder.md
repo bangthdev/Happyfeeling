@@ -41,6 +41,7 @@ Mentor đã báo sẽ cấp 1 key khác để test (tên/loại chưa xác nhậ
 **Phạm vi file:** Tạo mới `packages/ai-pipeline/**` (`package.json`, `tsconfig.json`, `src/state.ts`). Sửa `packages/github/package.json` (chỉ thêm `exports`), không đổi logic.
 
 **Interface bắt buộc:**
+
 - `packages/github/package.json` thêm 2 dòng vào `exports` map đã có (theo đúng mẫu E3-2):
   ```json
   "./review/contextBuilder": "./dist/review/contextBuilder.js",
@@ -50,6 +51,7 @@ Mentor đã báo sẽ cấp 1 key khác để test (tên/loại chưa xác nhậ
 - `packages/ai-pipeline/src/state.ts`: export `ReviewState = Annotation.Root({...})` đúng 3 field mô tả ở "Ràng buộc chung", dùng type `Finding` import từ `@happyfeeling/github/review/llmReviewer` (type-only import).
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm --filter @happyfeeling/ai-pipeline build` exit 0.
 - Test import `ReviewState` từ package khác (mô phỏng cách E5-2 sẽ dùng), tạo `new StateGraph(ReviewState)` không lỗi type.
 
@@ -64,6 +66,7 @@ Mentor đã báo sẽ cấp 1 key khác để test (tên/loại chưa xác nhậ
 **Phạm vi file:** `packages/ai-pipeline/src/finder.ts` (mới), `packages/ai-pipeline/src/finder.test.ts`.
 
 **Interface bắt buộc:**
+
 - `finderNode(state: typeof ReviewState.State): Promise<Partial<typeof ReviewState.State>>` — export named, KHÔNG compile graph trong file này (graph compile để dành Epic 6, khi có đủ 2 node).
 - Prompt mới (KHÔNG tái dùng nguyên văn `buildPrompt` trong `llmReviewer.groq.ts` — prompt đó đã thiên về lọc chặt "chỉ ra vấn đề thật sự quan trọng... bỏ qua nitpick"). Prompt finder phải nói rõ: tìm **mọi** vấn đề có thể kể cả chưa chắc chắn, không tự loại trừ — việc loại trừ để dành node lọc (Epic 6).
 - Chunking: gọi `chunkDiff` (từ `@happyfeeling/github/review/diffChunker`) với `state.diff`, lặp tuần tự từng chunk (giữ `CHUNK_DELAY_MS` giữa các lần gọi), gộp kết quả `Finding[]` từ mọi chunk thành `candidates`.
@@ -72,6 +75,7 @@ Mentor đã báo sẽ cấp 1 key khác để test (tên/loại chưa xác nhậ
 - Xử lý lỗi: giữ đúng 2 hành vi đang có trong `llmReviewer.groq.ts` (retry khi 429 theo header `retry-after`, retry khi model trả sai format) — cách khai báo (tay hay qua `retryPolicy`/`error_handler`) phụ thuộc quyết định client ở trên, nhưng **hành vi quan sát được phải giống hệt code cũ**, verify bằng test.
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm --filter @happyfeeling/ai-pipeline test` pass.
 - Test với diff giả có 1 vấn đề rõ ràng (bug thật) và 1 vấn đề mập mờ (borderline, kiểu nitpick) — xác nhận **cả 2** đều xuất hiện trong `candidates` (đúng tinh thần "tìm rộng", không tự lọc bớt).
 - Test giả lập Groq trả 429 → xác nhận retry đúng theo `retry-after`, không throw ngay.

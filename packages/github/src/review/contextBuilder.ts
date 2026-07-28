@@ -18,15 +18,17 @@ export function splitDiffByFile(diff: string): string[] {
 
 export function filePathOf(block: string): string {
   const match = block.match(/^diff --git a\/(?:.+?) b\/(.+?)$/m);
-  return match ? match[1] : '';
+  return match ? match[1] : "";
 }
 
 export function buildContext(rawDiff: string): ReviewContext {
   const fileBlocks = splitDiffByFile(rawDiff);
 
-  const kept = fileBlocks.filter((block) => !IGNORED_PATH_PATTERNS.some((re) => re.test(filePathOf(block))));
+  const kept = fileBlocks.filter(
+    (block) => !IGNORED_PATH_PATTERNS.some((re) => re.test(filePathOf(block))),
+  );
 
-  const files = kept.map(filePathOf).filter((path) => path !== '');
+  const files = kept.map(filePathOf).filter((path) => path !== "");
 
-  return { diff: kept.join(''), files };
+  return { diff: kept.join(""), files };
 }

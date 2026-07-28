@@ -1,4 +1,8 @@
-import { splitDiffByFile, filePathOf, type ReviewContext } from './contextBuilder.js';
+import {
+  splitDiffByFile,
+  filePathOf,
+  type ReviewContext,
+} from "./contextBuilder.js";
 
 const TOKEN_CHAR_RATIO = 4;
 
@@ -11,7 +15,10 @@ function splitBlockByHunk(block: string, maxTokens: number): string[] {
   if (firstHunkIndex === -1) return [block];
 
   const header = block.slice(0, firstHunkIndex);
-  const hunks = block.slice(firstHunkIndex).split(/(?=^@@ )/m).filter(Boolean);
+  const hunks = block
+    .slice(firstHunkIndex)
+    .split(/(?=^@@ )/m)
+    .filter(Boolean);
 
   const pieces: string[] = [];
   let current = header + hunks[0];
@@ -35,13 +42,13 @@ export function chunkDiff(diff: string, maxTokens: number): ReviewContext[] {
   const blocks = splitDiffByFile(diff);
   const chunks: ReviewContext[] = [];
 
-  let currentDiff = '';
+  let currentDiff = "";
   let currentFiles: string[] = [];
   let currentTokens = 0;
 
   const flush = () => {
     if (currentDiff) chunks.push({ diff: currentDiff, files: currentFiles });
-    currentDiff = '';
+    currentDiff = "";
     currentFiles = [];
     currentTokens = 0;
   };

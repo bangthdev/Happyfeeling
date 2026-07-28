@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { createReviewQueue } from './queue.js';
-import { createReviewWorker } from './worker.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { afterEach, describe, expect, it } from "vitest";
+import { createReviewQueue } from "./queue.js";
+import { createReviewWorker } from "./worker.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
-describe('createReviewWorker', () => {
+describe("createReviewWorker", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
   let worker: ReturnType<typeof createReviewWorker> | undefined;
 
@@ -13,13 +13,13 @@ describe('createReviewWorker', () => {
     await queue?.close();
   });
 
-  it('receives the job added to the queue', async () => {
+  it("receives the job added to the queue", async () => {
     queue = createReviewQueue();
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 42,
-      headSha: 'abc123',
+      headSha: "abc123",
     };
     let receivedPayload: ReviewJobPayload | undefined;
 
@@ -28,7 +28,7 @@ describe('createReviewWorker', () => {
     });
 
     const completed = new Promise<void>((resolve) => {
-      worker!.on('completed', () => resolve());
+      worker!.on("completed", () => resolve());
     });
 
     await queue.add(REVIEW_QUEUE_NAME, payload);
@@ -37,23 +37,23 @@ describe('createReviewWorker', () => {
     expect(receivedPayload).toEqual(payload);
   });
 
-  it('does not retry a failed job (defaultJobOptions.attempts: 1)', async () => {
+  it("does not retry a failed job (defaultJobOptions.attempts: 1)", async () => {
     queue = createReviewQueue();
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 43,
-      headSha: 'def456',
+      headSha: "def456",
     };
     let callCount = 0;
 
     worker = createReviewWorker(async () => {
       callCount++;
-      throw new Error('permanent failure');
+      throw new Error("permanent failure");
     });
 
     const failed = new Promise<void>((resolve) => {
-      worker!.on('failed', () => resolve());
+      worker!.on("failed", () => resolve());
     });
 
     await queue.add(REVIEW_QUEUE_NAME, payload);
