@@ -56,16 +56,19 @@ Thêm 1 bước lọc (`filterNewFindings`) vào `PipelineDeps`, chạy giữa `
 Thiết kế thật đi đúng như plan, chỉ khác vài chi tiết implementation (đã ghi rõ ở dưới) so với bản phác thảo ban đầu.
 
 **Khác so với draft ban đầu:**
+
 - `apps/worker/src/dedupFilter.ts`: thay vì tra cứu **từng finding một** (`findUnique`/`update`), bản thật gom thành **1 lần `findMany`** (tra tất cả `dedupHash` cùng lúc) + **1 lần `updateMany`** (bump `lastSeenAt` cho tất cả finding đã biết cùng lúc) — phát hiện ở code-review vòng 1 (N finding = tối đa 2N round-trip DB, không cần thiết).
 - Có thêm 1 `Set` theo dõi `dedupHash` **trong cùng 1 batch** — nếu Groq trả 2 finding trùng file+line trong cùng 1 lần review, chỉ finding đầu tiên được giữ lại (phát hiện ở code-review vòng 1, bản draft ban đầu chỉ tính đến trùng giữa các lần review, không tính trùng trong 1 lần).
 - Lỗi DB khi tra cứu (`findMany`) và lỗi DB khi bump timestamp (`updateMany`) được xử lý ở **2 try/catch riêng**: lỗi tra cứu → coi tất cả là "mới" (an toàn, vì thật sự không biết); lỗi bump timestamp → chỉ log, không ảnh hưởng tới finding đã biết là trùng (bug thật bị phát hiện ở code-review vòng 2 khi 2 bước này từng gộp chung 1 try/catch).
 - `PipelineDeps.filterNewFindings` vẫn giữ **bắt buộc** (không phải optional) — file MVP cũ không có DB (`packages/github/src/index.ts`) dùng lại 1 hàm passthrough có tên rõ ràng (`passthroughFilterNewFindings`, export từ `pipeline.ts`) thay vì tự chế 1 stub ẩn danh.
 
 **Giới hạn đã biết, cố tình không sửa (không phải bỏ sót):**
+
 - `dedupHash` chỉ dựa trên (repo, prNumber, filePath, line), bỏ qua nội dung/mức độ nghiêm trọng — nếu 1 dòng đổi từ lỗi nhẹ sang lỗi nặng ở lần review sau, bot vẫn coi là "đã biết" và không post lại. Đây là giới hạn MVP đã chốt sẵn trong spec gốc (dòng 154, `2026-07-15-epic-3-4-walking-skeleton-dedup.md`), không phải bug của AIC-32.
 - Race condition: 2 job xử lý chồng lấn cùng 1 PR trước khi finding nào được ghi DB có thể cùng post trùng comment lên GitHub — `skipDuplicates` chỉ chặn được row DB trùng, không chặn được comment trùng. Đã ghi rõ giới hạn này trong comment code (`processJob.ts`), chưa giải quyết tận gốc (cần lock/transaction, ngoài phạm vi task này).
 
 **Verify:**
+
 - `pnpm --filter @happyfeeling/github test` → 54/54 pass.
 - `pnpm --filter @happyfeeling/worker test` (trừ `worker.integration.test.ts`, cần Redis/Postgres thật) → 14/14 pass.
 - `pnpm -r build` (toàn repo) → exit 0.

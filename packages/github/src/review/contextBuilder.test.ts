@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildContext } from './contextBuilder.js';
+import { describe, it, expect } from "vitest";
+import { buildContext } from "./contextBuilder.js";
 
 const DIFF_WITH_VENDOR_FILE = `diff --git a/src/foo.ts b/src/foo.ts
 index abc..def 100644
@@ -17,15 +17,15 @@ index 111..222 100644
 +new
 `;
 
-describe('buildContext', () => {
-  it('filters out vendor files and keeps normal files', () => {
+describe("buildContext", () => {
+  it("filters out vendor files and keeps normal files", () => {
     const context = buildContext(DIFF_WITH_VENDOR_FILE);
-    expect(context.files).toEqual(['src/foo.ts']);
-    expect(context.diff).toContain('src/foo.ts');
-    expect(context.diff).not.toContain('vendor/lib.go');
+    expect(context.files).toEqual(["src/foo.ts"]);
+    expect(context.diff).toContain("src/foo.ts");
+    expect(context.diff).not.toContain("vendor/lib.go");
   });
 
-  it('filters .pb.go and node_modules paths', () => {
+  it("filters .pb.go and node_modules paths", () => {
     const diff = `diff --git a/api.pb.go b/api.pb.go
 --- a/api.pb.go
 +++ b/api.pb.go
@@ -43,7 +43,7 @@ diff --git a/node_modules/pkg/index.js b/node_modules/pkg/index.js
     expect(context.files).toEqual([]);
   });
 
-  it('filters lockfiles (package-lock.json, pnpm-lock.yaml, yarn.lock)', () => {
+  it("filters lockfiles (package-lock.json, pnpm-lock.yaml, yarn.lock)", () => {
     const diff = `diff --git a/src/foo.ts b/src/foo.ts
 --- a/src/foo.ts
 +++ b/src/foo.ts
@@ -70,6 +70,6 @@ diff --git a/yarn.lock b/yarn.lock
 +new
 `;
     const context = buildContext(diff);
-    expect(context.files).toEqual(['src/foo.ts']);
+    expect(context.files).toEqual(["src/foo.ts"]);
   });
 });

@@ -1,11 +1,20 @@
-import type { Finding } from '@happyfeeling/github/pipeline';
-import { computeDedupHash } from '@happyfeeling/github/review/dedup';
-import { prisma } from '@happyfeeling/db';
+import type { Finding } from "@happyfeeling/github/pipeline";
+import { computeDedupHash } from "@happyfeeling/github/review/dedup";
+import { prisma } from "@happyfeeling/db";
 
-export async function filterNewFindings(repo: string, prNumber: number, findings: Finding[]): Promise<Finding[]> {
+export async function filterNewFindings(
+  repo: string,
+  prNumber: number,
+  findings: Finding[],
+): Promise<Finding[]> {
   const byHash = new Map<string, Finding>();
   for (const finding of findings) {
-    const dedupHash = computeDedupHash(repo, prNumber, finding.file, finding.line);
+    const dedupHash = computeDedupHash(
+      repo,
+      prNumber,
+      finding.file,
+      finding.line,
+    );
     if (!byHash.has(dedupHash)) byHash.set(dedupHash, finding);
   }
   if (byHash.size === 0) return [];
@@ -23,7 +32,7 @@ export async function filterNewFindings(repo: string, prNumber: number, findings
     // rather than silently dropping ones that might be new.
     console.error(
       `Dedup lookup failed for ${dedupHashes.length} finding(s) — treating them all as new rather than silently dropping them`,
-      err
+      err,
     );
     return [...byHash.values()];
   }
@@ -40,10 +49,15 @@ export async function filterNewFindings(repo: string, prNumber: number, findings
     } catch (err) {
       // We already know which findings are duplicates (the lookup above succeeded) —
       // a failure to bump lastSeenAt is a best-effort miss, not a reason to repost them.
-      console.error(`Failed to bump lastSeenAt for ${existingHashes.length} already-seen finding(s)`, err);
+      console.error(
+        `Failed to bump lastSeenAt for ${existingHashes.length} already-seen finding(s)`,
+        err,
+      );
     }
   }
 
   const existingSet = new Set(existingHashes);
-  return [...byHash.entries()].filter(([hash]) => !existingSet.has(hash)).map(([, finding]) => finding);
+  return [...byHash.entries()]
+    .filter(([hash]) => !existingSet.has(hash))
+    .map(([, finding]) => finding);
 }

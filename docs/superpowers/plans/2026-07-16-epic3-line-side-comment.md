@@ -32,10 +32,12 @@
 ### Task 1: `postReviewComment` dùng `line`+`side` thay vì `position`
 
 **Files:**
+
 - Modify: `packages/github/src/github/client.ts:23-53`
 - Test: `packages/github/src/github/client.test.ts:38-84`
 
 **Interfaces:**
+
 - Produces: `PostCommentParams { token, owner, repo, prNumber, commitSha, filePath, line: number, side: 'LEFT' | 'RIGHT', body }`, `postReviewComment(params, fetchFn?): Promise<void>`.
 
 - [ ] **Step 1: Sửa test `postReviewComment` sang `line`+`side` (test sẽ fail vì implementation chưa đổi)**
@@ -43,53 +45,65 @@
 Thay toàn bộ block `describe('postReviewComment', ...)` trong `packages/github/src/github/client.test.ts` bằng:
 
 ```typescript
-describe('postReviewComment', () => {
-  it('posts a comment with line and side', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
+describe("postReviewComment", () => {
+  it("posts a comment with line and side", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: () => Promise.resolve("") });
 
     await postReviewComment(
       {
-        token: 'tok',
-        owner: 'acme',
-        repo: 'widgets',
+        token: "tok",
+        owner: "acme",
+        repo: "widgets",
         prNumber: 42,
-        commitSha: 'abc123',
-        filePath: 'src/x.ts',
+        commitSha: "abc123",
+        filePath: "src/x.ts",
         line: 4,
-        side: 'RIGHT',
-        body: 'nice catch',
+        side: "RIGHT",
+        body: "nice catch",
       },
-      fetchFn as unknown as typeof fetch
+      fetchFn as unknown as typeof fetch,
     );
 
     expect(fetchFn).toHaveBeenCalledWith(
-      'https://api.github.com/repos/acme/widgets/pulls/42/comments',
+      "https://api.github.com/repos/acme/widgets/pulls/42/comments",
       expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ commit_id: 'abc123', path: 'src/x.ts', line: 4, side: 'RIGHT', body: 'nice catch' }),
-      })
+        method: "POST",
+        body: JSON.stringify({
+          commit_id: "abc123",
+          path: "src/x.ts",
+          line: 4,
+          side: "RIGHT",
+          body: "nice catch",
+        }),
+      }),
     );
   });
 
-  it('throws when the response is not ok', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, status: 403, text: () => Promise.resolve('rate limited') });
+  it("throws when the response is not ok", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve("rate limited"),
+    });
 
     await expect(
       postReviewComment(
         {
-          token: 'tok',
-          owner: 'acme',
-          repo: 'widgets',
+          token: "tok",
+          owner: "acme",
+          repo: "widgets",
           prNumber: 42,
-          commitSha: 'abc123',
-          filePath: 'src/x.ts',
+          commitSha: "abc123",
+          filePath: "src/x.ts",
           line: 4,
-          side: 'RIGHT',
-          body: 'nice catch',
+          side: "RIGHT",
+          body: "nice catch",
         },
-        fetchFn as unknown as typeof fetch
-      )
-    ).rejects.toThrow('403');
+        fetchFn as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("403");
   });
 });
 ```
@@ -112,28 +126,49 @@ export interface PostCommentParams {
   commitSha: string;
   filePath: string;
   line: number;
-  side: 'LEFT' | 'RIGHT';
+  side: "LEFT" | "RIGHT";
   body: string;
 }
 
 export async function postReviewComment(
   params: PostCommentParams,
-  fetchFn: typeof fetch = fetch
+  fetchFn: typeof fetch = fetch,
 ): Promise<void> {
-  const { token, owner, repo, prNumber, commitSha, filePath, line, side, body } = params;
+  const {
+    token,
+    owner,
+    repo,
+    prNumber,
+    commitSha,
+    filePath,
+    line,
+    side,
+    body,
+  } = params;
 
-  const res = await fetchFn(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/comments`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
+  const res = await fetchFn(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({
+        commit_id: commitSha,
+        path: filePath,
+        line,
+        side,
+        body,
+      }),
     },
-    body: JSON.stringify({ commit_id: commitSha, path: filePath, line, side, body }),
-  });
+  );
 
   if (!res.ok) {
-    throw new Error(`Failed to post review comment: ${res.status} ${await res.text()}`);
+    throw new Error(
+      `Failed to post review comment: ${res.status} ${await res.text()}`,
+    );
   }
 }
 ```
@@ -168,11 +203,13 @@ EOF
 ### Task 2: `postFindings` bỏ tham số `diff`, trả về `Finding[]` đã post
 
 **Files:**
+
 - Modify: `packages/github/src/review/commentPoster.ts`
 - Test: `packages/github/src/review/commentPoster.test.ts`
 - Delete: `packages/github/src/github/diffPosition.ts`, `packages/github/src/github/diffPosition.test.ts`
 
 **Interfaces:**
+
 - Consumes: `postReviewComment(params: PostCommentParams, fetchFn?): Promise<void>` từ Task 1 (field `line`, `side`).
 - Produces: `PostFindingsParams { token, owner, repo, prNumber, commitSha, findings: Finding[] }` (không còn `diff`), `PostFindingsResult { posted: Finding[]; skipped: number }`, `postFindings(params, postFn?): Promise<PostFindingsResult>`.
 
@@ -181,32 +218,59 @@ EOF
 Thay toàn bộ nội dung `packages/github/src/review/commentPoster.test.ts` bằng:
 
 ```typescript
-import { describe, it, expect, vi } from 'vitest';
-import { postFindings } from './commentPoster.js';
-import type { Finding } from './llmReviewer.js';
+import { describe, it, expect, vi } from "vitest";
+import { postFindings } from "./commentPoster.js";
+import type { Finding } from "./llmReviewer.js";
 
-describe('postFindings', () => {
-  it('posts every finding using line+side and returns the posted findings', async () => {
+describe("postFindings", () => {
+  it("posts every finding using line+side and returns the posted findings", async () => {
     const postFn = vi.fn().mockResolvedValue(undefined);
     const findings: Finding[] = [
-      { file: 'src/foo.ts', line: 3, severity: 'high', message: 'bug', suggestion: 'fix' },
-      { file: 'src/foo.ts', line: 10, severity: 'low', message: 'nit', suggestion: 'n/a' },
+      {
+        file: "src/foo.ts",
+        line: 3,
+        severity: "high",
+        message: "bug",
+        suggestion: "fix",
+      },
+      {
+        file: "src/foo.ts",
+        line: 10,
+        severity: "low",
+        message: "nit",
+        suggestion: "n/a",
+      },
     ];
 
     const result = await postFindings(
-      { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
-      postFn
+      {
+        token: "tok",
+        owner: "acme",
+        repo: "widgets",
+        prNumber: 1,
+        commitSha: "sha1",
+        findings,
+      },
+      postFn,
     );
 
     expect(result).toEqual({ posted: findings, skipped: 0 });
     expect(postFn).toHaveBeenCalledTimes(2);
     expect(postFn).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ filePath: 'src/foo.ts', line: 3, side: 'RIGHT' })
+      expect.objectContaining({
+        filePath: "src/foo.ts",
+        line: 3,
+        side: "RIGHT",
+      }),
     );
     expect(postFn).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ filePath: 'src/foo.ts', line: 10, side: 'RIGHT' })
+      expect.objectContaining({
+        filePath: "src/foo.ts",
+        line: 10,
+        side: "RIGHT",
+      }),
     );
   });
 });
@@ -222,8 +286,8 @@ Expected: FAIL — TypeScript báo thiếu field `diff` trong `PostFindingsParam
 Thay toàn bộ nội dung `packages/github/src/review/commentPoster.ts` bằng:
 
 ```typescript
-import { postReviewComment } from '../github/client.js';
-import type { Finding } from './llmReviewer.js';
+import { postReviewComment } from "../github/client.js";
+import type { Finding } from "./llmReviewer.js";
 
 export interface PostFindingsParams {
   token: string;
@@ -241,7 +305,7 @@ export interface PostFindingsResult {
 
 export async function postFindings(
   params: PostFindingsParams,
-  postFn: typeof postReviewComment = postReviewComment
+  postFn: typeof postReviewComment = postReviewComment,
 ): Promise<PostFindingsResult> {
   const { token, owner, repo, prNumber, commitSha, findings } = params;
   const posted: Finding[] = [];
@@ -255,7 +319,7 @@ export async function postFindings(
       commitSha,
       filePath: finding.file,
       line: finding.line,
-      side: 'RIGHT',
+      side: "RIGHT",
       body: `**[${finding.severity}]** ${finding.message}\n\n${finding.suggestion}`,
     });
     posted.push(finding);
@@ -309,10 +373,12 @@ EOF
 ### Task 3: Cập nhật `pipeline.ts` theo interface mới của `postFindings`
 
 **Files:**
+
 - Modify: `packages/github/src/pipeline.ts:24-32,39-45`
 - Test: `packages/github/src/pipeline.test.ts`
 
 **Interfaces:**
+
 - Consumes: `postFindings(params: PostFindingsParams, postFn?): Promise<PostFindingsResult>` từ Task 2 — `PostFindingsParams` không còn `diff`, `PostFindingsResult.posted` là `Finding[]`.
 
 **Vì sao task này bắt buộc dù ngoài phạm vi gốc:** `pipeline.ts` là nơi duy nhất gọi `postFindings` trong codebase (đã grep xác nhận). Nó đang truyền `diff: context.diff` (field không còn tồn tại trong `PostFindingsParams` mới → lỗi excess-property khi build) và dùng `posted` thẳng làm `findings_count: number` (giờ `posted` là mảng → lỗi kiểu). Không sửa thì `pnpm --filter @happyfeeling/github build` sẽ đỏ ngay cả khi Task 1+2 đúng.
@@ -322,16 +388,24 @@ EOF
 Trong `packages/github/src/pipeline.test.ts`, thay dòng:
 
 ```typescript
-    vi.mocked(postFindings).mockResolvedValue({ posted: 1, skipped: 0 });
+vi.mocked(postFindings).mockResolvedValue({ posted: 1, skipped: 0 });
 ```
 
 bằng:
 
 ```typescript
-    vi.mocked(postFindings).mockResolvedValue({
-      posted: [{ file: 'src/x.ts', line: 1, severity: 'high', message: 'm', suggestion: 's' }],
-      skipped: 0,
-    });
+vi.mocked(postFindings).mockResolvedValue({
+  posted: [
+    {
+      file: "src/x.ts",
+      line: 1,
+      severity: "high",
+      message: "m",
+      suggestion: "s",
+    },
+  ],
+  skipped: 0,
+});
 ```
 
 - [ ] **Step 2: Chạy test, xác nhận fail**
@@ -344,28 +418,28 @@ Expected: FAIL — TypeScript báo gán `Finding[]` cho tham số kiểu `number
 Trong `packages/github/src/pipeline.ts`, thay khối (dòng 24-32):
 
 ```typescript
-  const { posted } = await postFindings({
-    token,
-    owner: event.owner,
-    repo: event.repo,
-    prNumber: event.prNumber,
-    commitSha: event.headSha,
-    diff: context.diff,
-    findings,
-  });
+const { posted } = await postFindings({
+  token,
+  owner: event.owner,
+  repo: event.repo,
+  prNumber: event.prNumber,
+  commitSha: event.headSha,
+  diff: context.diff,
+  findings,
+});
 ```
 
 bằng:
 
 ```typescript
-  const { posted } = await postFindings({
-    token,
-    owner: event.owner,
-    repo: event.repo,
-    prNumber: event.prNumber,
-    commitSha: event.headSha,
-    findings,
-  });
+const { posted } = await postFindings({
+  token,
+  owner: event.owner,
+  repo: event.repo,
+  prNumber: event.prNumber,
+  commitSha: event.headSha,
+  findings,
+});
 ```
 
 và thay dòng (trong khối `logMetrics`, khoảng dòng 41):

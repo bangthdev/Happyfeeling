@@ -9,10 +9,12 @@ Comment bot post lên PR hiện chỉ có `**[severity]** message` + 1 câu `sug
 ## Phạm vi
 
 Chỉ 2 file:
+
 - `packages/github/src/review/llmReviewer.groq.ts` — đường Groq đang chạy thật (production path)
 - `packages/github/src/review/commentPoster.ts` — build nội dung comment
 
 **Không đụng:**
+
 - `packages/ai-pipeline/src/finder.ts` (Epic 5, chưa wire vào pipeline thật — sẽ cần đồng bộ sau, nhưng là follow-up riêng)
 - `packages/github/src/review/llmReviewer.ts` (reviewer Claude cũ, đang tắt/không dùng — chỉ thêm field optional để không vỡ type, không sửa logic)
 
@@ -31,10 +33,12 @@ Không cần migration DB — `Finding` Prisma model chỉ lưu `file/line/sever
 Hiện `resolveFindings()` chỉ dùng `codeSnippet` để tính `line` (qua `resolveLine`) rồi **bỏ nó đi**. Giờ giữ lại cả `codeSnippet` và `fixedCode`, đưa vào `Finding` trả về.
 
 `Finding` type (`llmReviewer.ts`, dùng chung Groq/Claude) thêm 2 field **optional**:
+
 ```ts
 codeSnippet?: string;
 fixedCode?: string;
 ```
+
 Optional vì chỉ path Groq điền — path Claude (đang tắt) không có 2 field này, không nên coi là bắt buộc ở type dùng chung.
 
 Cơ chế drop-nếu-không-resolve-được của AIC-36 (`resolveLine` trả `null` → drop finding) **không đổi**.
@@ -43,19 +47,20 @@ Cơ chế drop-nếu-không-resolve-được của AIC-36 (`resolveLine` trả `
 
 **Case chính** — có đủ `codeSnippet` + `fixedCode`, và `fixedCode` khác `codeSnippet` (sau khi trim):
 
-```
+````
 **[severity]** message
 
 Before:
 ```ts
 <codeSnippet>
-```
+````
 
 ```suggestion
 <fixedCode>
 ```
 
 <suggestion (câu giải thích bằng lời)>
+
 ```
 
 - **Before** — code block thường (chỉ đọc), tự chứa ngữ cảnh, không cần kéo lên xem diff.
@@ -65,9 +70,11 @@ Before:
 **Case fallback** — thiếu `codeSnippet`/`fixedCode` (path Claude, hoặc dữ liệu cũ), **hoặc** `fixedCode.trim() === codeSnippet.trim()` (model không thực sự đổi gì — coi là output lỗi, không hiển thị 1 suggestion vô nghĩa):
 
 ```
+
 **[severity]** message
 
 suggestion
+
 ```
 (y hệt format hiện tại, không có code block)
 
@@ -83,3 +90,4 @@ suggestion
 
 - Đồng bộ `finder.ts` (Epic 5) theo cùng interface `codeSnippet`/`fixedCode` — làm khi Epic 5 thật sự wire vào pipeline (Epic 6).
 - GitHub multi-line range comment (`start_line`) — không cần, vì anchor luôn là 1 dòng duy nhất (`codeSnippet` theo thiết kế AIC-36 luôn khớp đúng 1 dòng diff).
+```

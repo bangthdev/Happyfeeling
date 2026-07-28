@@ -1,19 +1,19 @@
-import { loadRootEnv } from '@happyfeeling/config';
+import { loadRootEnv } from "@happyfeeling/config";
 
 loadRootEnv(import.meta.url);
 
-import { createReviewWorker } from '@happyfeeling/queue';
-import { runReviewPipeline } from '@happyfeeling/github/pipeline';
-import { createInstallationTokenProvider } from '@happyfeeling/github/github/auth';
-import { loadConfig } from '@happyfeeling/github/config';
-import { processReviewJob } from './processJob.js';
-import { filterNewFindings } from './dedupFilter.js';
+import { createReviewWorker } from "@happyfeeling/queue";
+import { runReviewPipeline } from "@happyfeeling/github/pipeline";
+import { createInstallationTokenProvider } from "@happyfeeling/github/github/auth";
+import { loadConfig } from "@happyfeeling/github/config";
+import { processReviewJob } from "./processJob.js";
+import { filterNewFindings } from "./dedupFilter.js";
 
 const config = loadConfig();
 const tokenProvider = createInstallationTokenProvider(
   config.githubAppId,
   config.githubPrivateKey,
-  config.githubInstallationId
+  config.githubInstallationId,
 );
 
 createReviewWorker((job) =>
@@ -24,7 +24,7 @@ createReviewWorker((job) =>
       openrouterApiKey: config.openrouterApiKey,
       filterNewFindings,
     },
-  })
+  }),
 );
 
-console.log('Worker listening for review jobs...');
+console.log("Worker listening for review jobs...");

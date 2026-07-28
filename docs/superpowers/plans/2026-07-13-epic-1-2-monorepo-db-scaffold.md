@@ -32,11 +32,13 @@
 **Branch:** `nhd98z/epic-1-pnpm-workspace-skeleton`
 
 **Tệp:**
+
 - Tạo mới: `pnpm-workspace.yaml`
 - Tạo mới: `packages/config/package.json`
 - Tạo mới: `packages/config/tsconfig.base.json`
 
 **Interface:**
+
 - Dùng: không cần gì.
 - Tạo ra: `packages/config/tsconfig.base.json` — mọi `tsconfig.json` của package khác sau này sẽ `"extends": "../config/tsconfig.base.json"`. `pnpm-workspace.yaml` với glob `apps/*` / `packages/*` — mỗi thư mục package sau này chỉ cần có `package.json` riêng là tự động được pnpm nhận diện.
 
@@ -102,11 +104,13 @@ git commit -m "chore: add pnpm workspace skeleton with shared base tsconfig"
 **Phạm vi file:** `package.json`/`package-lock.json` (root), `tsconfig.json`/`vitest.config.ts` (root), toàn bộ `src/` → `packages/github/**`.
 
 **Interface bắt buộc:**
+
 - Tên package đúng `@happyfeeling/github` — Task A3 (Docker) và các epic sau gọi theo tên này.
 - `packages/github/tsconfig.json` phải `"extends": "../config/tsconfig.base.json"` (output của Task 1).
 - Có đủ 4 script `dev` / `build` / `start` / `test` — để `pnpm -r test` và `pnpm -r build` ở root (chạy xuyên suốt workspace, kể cả `packages/db` của Track B) không thiếu package.
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm install` → exit code 0, sinh `pnpm-lock.yaml` ở root.
 - `pnpm --filter @happyfeeling/github test` → `Test Files 13 passed (13)`, `Tests 38 passed (38)` — đúng số lượng như trước khi chuyển.
 
@@ -136,11 +140,13 @@ git mv vitest.config.ts packages/github/vitest.config.ts
 **Phạm vi file:** toàn bộ `apps/web/**` (tạo mới).
 
 **Interface bắt buộc:**
+
 - Tên package đúng `@happyfeeling/web` — Task A3 (Docker) và `docker-compose.yml` gọi theo tên/đường dẫn này.
 - `apps/web/tsconfig.json` phải `extends` từ `packages/config/tsconfig.base.json`.
 - Có script `build` chạy được — Dockerfile ở Task A3 gọi đúng script này.
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm install` → exit 0, `@happyfeeling/web` xuất hiện trong `pnpm -r list --depth -1`.
 - `pnpm --filter @happyfeeling/web build` → `Compiled successfully`, exit code 0.
 
@@ -162,10 +168,12 @@ Next.js 14 App Router, tối thiểu: `package.json` (deps `next`/`react`/`react
 **Phạm vi file:** `apps/web/Dockerfile`, `docker-compose.yml` (root, tạo mới).
 
 **Interface bắt buộc:**
+
 - Service Postgres trong Compose dùng credentials `happyfeeling`/`happyfeeling`/`happyfeeling`, expose cổng `5432` — Track B (`packages/db/.env`) và Task 5 dựa đúng vào thông tin này để trỏ `DATABASE_URL`.
 - Chưa định nghĩa service `worker` (chưa có code — để Epic 3 làm sau).
 
 **Tiêu chí nghiệm thu:**
+
 - `docker compose up -d postgres redis` → cả 2 container `Up` (`docker compose ps`).
 - `docker compose build web` → build thành công, exit code 0.
 
@@ -191,11 +199,13 @@ Dockerfile multi-stage `node:20-alpine`: copy `pnpm-lock.yaml` + `packages` + `a
 **Phạm vi file:** toàn bộ `packages/db/**` (tạo mới, trừ migration — làm ở B2).
 
 **Interface bắt buộc:**
+
 - Tên package đúng `@happyfeeling/db` — các epic sau (4, 6, 9, 10 — ngoài phạm vi plan này) import package này để lấy Prisma client.
 - 4 model đúng tên `Finding`, `Metric`, `Config`, `Ticket`, với ràng buộc unique tối thiểu: `Finding.dedupHash` (Epic 4 cần để chống trùng), `Config.key` (Epic 8 đọc threshold động theo key), `Ticket.ticketId` (Epic 9 tra theo mã ticket Linear).
 - `packages/db/tsconfig.json` extends `packages/config/tsconfig.base.json`.
 
 **Tiêu chí nghiệm thu:**
+
 - `pnpm --filter @happyfeeling/db exec prisma validate` → `The schema at prisma/schema.prisma is valid 🚀`.
 
 <details>
@@ -216,9 +226,11 @@ Prisma 7 + `@prisma/client` 7, datasource `postgresql` đọc `DATABASE_URL` t�
 **Phạm vi file:** `packages/db/.env` (local only, gitignore), `packages/db/prisma/migrations/**`.
 
 **Interface bắt buộc:**
+
 - Chạy Postgres tạm **độc lập** với Docker Compose của Track A (không chờ Task A3 xong mới bắt đầu) — dùng đúng credentials như Compose (`happyfeeling`/`happyfeeling`/`happyfeeling`, cổng `5432`) để Task 5 không phải sửa gì khi đổi qua Postgres thật.
 
 **Tiêu chí nghiệm thu:**
+
 - Migration chạy thành công (`Your database is now in sync with your schema.` hoặc tương đương).
 - 4 bảng `Finding`/`Metric`/`Config`/`Ticket` xuất hiện khi liệt kê bảng trong Postgres.
 
@@ -240,9 +252,11 @@ Prisma 7 + `@prisma/client` 7, datasource `postgresql` đọc `DATABASE_URL` t�
 **Phạm vi file:** `packages/db/src/**` (client, seed, test — tự đặt tên file).
 
 **Interface bắt buộc:**
+
 - Có 1 điểm export instance `PrismaClient` dùng chung (vd biến `prisma`) — các epic sau (4, 6, 9, 10) import đúng chỗ này thay vì tự tạo `PrismaClient()` riêng.
 
 **Tiêu chí nghiệm thu:**
+
 - Có test tự động chạy pass sau khi seed đã chạy, và fail nếu seed chưa chạy (chứng minh test có tác dụng thật, không phải test giả).
 
 <details>
@@ -263,6 +277,7 @@ Seed script `upsert` 1 dòng `Config` (vd `filter.confidenceThreshold`) + 1 dòn
 Đây là bước ghép 2 track lại — vì mỗi người tự chọn cách implement riêng cho task của mình, đây cũng là nơi phát hiện nếu có gì lệch Interface bắt buộc đã nêu ở từng task (vd `DATABASE_URL`/credentials không khớp, thiếu script `test` ở 1 package nào đó). Không đạt ở đây thì coi như A3/B3 chưa xong, quay lại sửa track tương ứng.
 
 **Interface:**
+
 - Dùng: `docker-compose.yml` (Task A3), migration + seed của `packages/db` (Task B1–B3).
 - Tạo ra: xác nhận Docker của Epic 1 và Prisma schema của Epic 2 thực sự chạy chung được — đây là tiêu chí để đóng cả 2 epic.
 

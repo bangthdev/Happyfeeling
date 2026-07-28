@@ -21,11 +21,13 @@
 ### Task 1: Groq returns `fixedCode`, `Finding` carries `codeSnippet`+`fixedCode` through
 
 **Files:**
+
 - Modify: `packages/github/src/review/llmReviewer.ts` (the `Finding` interface, currently lines 4-11)
 - Modify: `packages/github/src/review/llmReviewer.groq.ts`
 - Test: `packages/github/src/review/llmReviewer.groq.test.ts`
 
 **Interfaces:**
+
 - Produces: `Finding` (in `llmReviewer.ts`) gains two new **optional** fields: `codeSnippet?: string`, `fixedCode?: string`. `reviewDiff()`'s return type is unchanged (`ReviewResult` with `findings: Finding[]`) — later tasks consume `finding.codeSnippet` / `finding.fixedCode`.
 
 - [ ] **Step 1: Add the optional fields to `Finding`**
@@ -37,7 +39,7 @@ export interface Finding {
   file: string;
   /** Line number in the new (post-diff) version of the file — never a deleted line. commentPoster.ts relies on this to always post comments on the diff's RIGHT side. */
   line: number;
-  severity: 'high' | 'medium' | 'low';
+  severity: "high" | "medium" | "low";
   message: string;
   suggestion: string;
 }
@@ -50,7 +52,7 @@ export interface Finding {
   file: string;
   /** Line number in the new (post-diff) version of the file — never a deleted line. commentPoster.ts relies on this to always post comments on the diff's RIGHT side. */
   line: number;
-  severity: 'high' | 'medium' | 'low';
+  severity: "high" | "medium" | "low";
   message: string;
   suggestion: string;
   /** Exact original line the finding refers to (Groq reviewer only — matches resolveLine's anchor text). */
@@ -67,60 +69,64 @@ This is a type-only change with no runtime behavior — no test for this step by
 In `packages/github/src/review/llmReviewer.groq.test.ts`, add this test (place it right after the `'resolves the finding line by matching codeSnippet against the diff'` test):
 
 ```ts
-  it('carries codeSnippet and fixedCode through into the final Finding', async () => {
-    const diff = `diff --git a/src/x.ts b/src/x.ts
+it("carries codeSnippet and fixedCode through into the final Finding", async () => {
+  const diff = `diff --git a/src/x.ts b/src/x.ts
 @@ -1,3 +1,4 @@
  const a = 1;
 +const bug = 1;
  const b = 2;
  const c = 3;
 `;
-    const fetchFn = fakeFetch(async () => ({
-      ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              tool_calls: [
-                {
-                  function: {
-                    name: 'submit_findings',
-                    arguments: JSON.stringify({
-                      findings: [
-                        {
-                          file: 'src/x.ts',
-                          codeSnippet: 'const bug = 1;',
-                          fixedCode: 'const notBug = 1;',
-                          severity: 'high',
-                          message: 'bad name',
-                          suggestion: 'rename it',
-                        },
-                      ],
-                    }),
-                  },
+  const fetchFn = fakeFetch(async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            tool_calls: [
+              {
+                function: {
+                  name: "submit_findings",
+                  arguments: JSON.stringify({
+                    findings: [
+                      {
+                        file: "src/x.ts",
+                        codeSnippet: "const bug = 1;",
+                        fixedCode: "const notBug = 1;",
+                        severity: "high",
+                        message: "bad name",
+                        suggestion: "rename it",
+                      },
+                    ],
+                  }),
                 },
-              ],
-            },
+              },
+            ],
           },
-        ],
-        usage: { prompt_tokens: 100, completion_tokens: 50 },
-      }),
-    }));
+        },
+      ],
+      usage: { prompt_tokens: 100, completion_tokens: 50 },
+    }),
+  }));
 
-    const result = await reviewDiff({ diff, files: ['src/x.ts'] }, 'fake-key', fetchFn);
+  const result = await reviewDiff(
+    { diff, files: ["src/x.ts"] },
+    "fake-key",
+    fetchFn,
+  );
 
-    expect(result.findings).toEqual([
-      {
-        file: 'src/x.ts',
-        line: 2,
-        severity: 'high',
-        message: 'bad name',
-        suggestion: 'rename it',
-        codeSnippet: 'const bug = 1;',
-        fixedCode: 'const notBug = 1;',
-      },
-    ]);
-  });
+  expect(result.findings).toEqual([
+    {
+      file: "src/x.ts",
+      line: 2,
+      severity: "high",
+      message: "bad name",
+      suggestion: "rename it",
+      codeSnippet: "const bug = 1;",
+      fixedCode: "const notBug = 1;",
+    },
+  ]);
+});
 ```
 
 - [ ] **Step 3: Run test to verify it fails**
@@ -153,7 +159,7 @@ interface RawFinding {
   file: string;
   codeSnippet: string;
   fixedCode: string;
-  severity: Finding['severity'];
+  severity: Finding["severity"];
   message: string;
   suggestion: string;
 }
@@ -199,17 +205,30 @@ Expected: PASS
 `resolveFindings` now includes `codeSnippet` in every returned `Finding`, which breaks the exact-equality (`toEqual`) assertion in the pre-existing test `'resolves the finding line by matching codeSnippet against the diff'`. In `packages/github/src/review/llmReviewer.groq.test.ts`, change:
 
 ```ts
-    expect(result.findings).toEqual([
-      { file: 'src/x.ts', line: 2, severity: 'high', message: 'bug', suggestion: 'fix it' },
-    ]);
+expect(result.findings).toEqual([
+  {
+    file: "src/x.ts",
+    line: 2,
+    severity: "high",
+    message: "bug",
+    suggestion: "fix it",
+  },
+]);
 ```
 
 to:
 
 ```ts
-    expect(result.findings).toEqual([
-      { file: 'src/x.ts', line: 2, severity: 'high', message: 'bug', suggestion: 'fix it', codeSnippet: 'const bug = 1;' },
-    ]);
+expect(result.findings).toEqual([
+  {
+    file: "src/x.ts",
+    line: 2,
+    severity: "high",
+    message: "bug",
+    suggestion: "fix it",
+    codeSnippet: "const bug = 1;",
+  },
+]);
 ```
 
 (That test's mock response doesn't set `fixedCode`, so it stays `undefined` on the result — `toEqual` treats an `undefined` property as equivalent to an absent one, so no change needed there.)
@@ -248,10 +267,12 @@ EOF
 ### Task 2: `commentPoster.ts` renders before/after with a GitHub suggestion block
 
 **Files:**
+
 - Modify: `packages/github/src/review/commentPoster.ts`
 - Test: `packages/github/src/review/commentPoster.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Finding` (from Task 1) — `codeSnippet?: string`, `fixedCode?: string`, plus the existing `file, line, severity, message, suggestion`.
 - Produces: `buildCommentBody(finding: Finding): string` — exported, pure function. `postFindings` uses it to build the `body` passed to `postFn`.
 
@@ -260,17 +281,17 @@ EOF
 In `packages/github/src/review/commentPoster.test.ts`, add a new `describe` block (after the existing `describe('postFindings', ...)` block, so it's a sibling, not nested):
 
 ```ts
-describe('buildCommentBody', () => {
-  it('falls back to the plain message+suggestion format when codeSnippet/fixedCode are missing', () => {
+describe("buildCommentBody", () => {
+  it("falls back to the plain message+suggestion format when codeSnippet/fixedCode are missing", () => {
     const finding: Finding = {
-      file: 'src/foo.ts',
+      file: "src/foo.ts",
       line: 5,
-      severity: 'low',
-      message: 'nit',
-      suggestion: 'n/a',
+      severity: "low",
+      message: "nit",
+      suggestion: "n/a",
     };
 
-    expect(buildCommentBody(finding)).toBe('**[low]** nit\n\nn/a');
+    expect(buildCommentBody(finding)).toBe("**[low]** nit\n\nn/a");
   });
 });
 ```
@@ -278,7 +299,7 @@ describe('buildCommentBody', () => {
 Add `buildCommentBody` to the existing import at the top of the file:
 
 ```ts
-import { postFindings, buildCommentBody } from './commentPoster.js';
+import { postFindings, buildCommentBody } from "./commentPoster.js";
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -305,36 +326,36 @@ Expected: PASS
 
 Add to the `describe('buildCommentBody', ...)` block:
 
-```ts
-  it('shows a Before block plus a GitHub suggestion block when codeSnippet and fixedCode differ', () => {
-    const finding: Finding = {
-      file: 'src/foo.ts',
-      line: 5,
-      severity: 'high',
-      message: 'Assignment instead of comparison',
-      suggestion: 'Use === for comparison instead of =.',
-      codeSnippet: 'if (score = 100) {',
-      fixedCode: 'if (score === 100) {',
-    };
+````ts
+it("shows a Before block plus a GitHub suggestion block when codeSnippet and fixedCode differ", () => {
+  const finding: Finding = {
+    file: "src/foo.ts",
+    line: 5,
+    severity: "high",
+    message: "Assignment instead of comparison",
+    suggestion: "Use === for comparison instead of =.",
+    codeSnippet: "if (score = 100) {",
+    fixedCode: "if (score === 100) {",
+  };
 
-    expect(buildCommentBody(finding)).toBe(
-      [
-        '**[high]** Assignment instead of comparison',
-        '',
-        'Before:',
-        '```ts',
-        'if (score = 100) {',
-        '```',
-        '',
-        '```suggestion',
-        'if (score === 100) {',
-        '```',
-        '',
-        'Use === for comparison instead of =.',
-      ].join('\n')
-    );
-  });
-```
+  expect(buildCommentBody(finding)).toBe(
+    [
+      "**[high]** Assignment instead of comparison",
+      "",
+      "Before:",
+      "```ts",
+      "if (score = 100) {",
+      "```",
+      "",
+      "```suggestion",
+      "if (score === 100) {",
+      "```",
+      "",
+      "Use === for comparison instead of =.",
+    ].join("\n"),
+  );
+});
+````
 
 - [ ] **Step 6: Run test to verify it fails**
 
@@ -345,7 +366,7 @@ Expected: FAIL — current `buildCommentBody` ignores `codeSnippet`/`fixedCode`,
 
 Replace `buildCommentBody` with:
 
-```ts
+````ts
 export function buildCommentBody(finding: Finding): string {
   const header = `**[${finding.severity}]** ${finding.message}`;
 
@@ -355,20 +376,20 @@ export function buildCommentBody(finding: Finding): string {
 
   return [
     header,
-    '',
-    'Before:',
-    '```ts',
+    "",
+    "Before:",
+    "```ts",
     finding.codeSnippet,
-    '```',
-    '',
-    '```suggestion',
+    "```",
+    "",
+    "```suggestion",
     finding.fixedCode,
-    '```',
-    '',
+    "```",
+    "",
     finding.suggestion,
-  ].join('\n');
+  ].join("\n");
 }
-```
+````
 
 - [ ] **Step 8: Run both tests to verify they pass**
 
@@ -380,19 +401,21 @@ Expected: PASS (both tests in the `describe('buildCommentBody', ...)` block)
 Add to the `describe('buildCommentBody', ...)` block:
 
 ```ts
-  it('falls back to the plain format when fixedCode is identical to codeSnippet', () => {
-    const finding: Finding = {
-      file: 'src/foo.ts',
-      line: 5,
-      severity: 'medium',
-      message: 'possible issue',
-      suggestion: 'double check this',
-      codeSnippet: 'doThing();',
-      fixedCode: 'doThing();',
-    };
+it("falls back to the plain format when fixedCode is identical to codeSnippet", () => {
+  const finding: Finding = {
+    file: "src/foo.ts",
+    line: 5,
+    severity: "medium",
+    message: "possible issue",
+    suggestion: "double check this",
+    codeSnippet: "doThing();",
+    fixedCode: "doThing();",
+  };
 
-    expect(buildCommentBody(finding)).toBe('**[medium]** possible issue\n\ndouble check this');
-  });
+  expect(buildCommentBody(finding)).toBe(
+    "**[medium]** possible issue\n\ndouble check this",
+  );
+});
 ```
 
 - [ ] **Step 10: Run test to verify it fails**
@@ -405,13 +428,13 @@ Expected: FAIL — current implementation renders the full Before/suggestion blo
 Replace the `if` condition in `buildCommentBody`:
 
 ```ts
-  if (
-    finding.codeSnippet === undefined ||
-    finding.fixedCode === undefined ||
-    finding.fixedCode.trim() === finding.codeSnippet.trim()
-  ) {
-    return `${header}\n\n${finding.suggestion}`;
-  }
+if (
+  finding.codeSnippet === undefined ||
+  finding.fixedCode === undefined ||
+  finding.fixedCode.trim() === finding.codeSnippet.trim()
+) {
+  return `${header}\n\n${finding.suggestion}`;
+}
 ```
 
 - [ ] **Step 12: Run all three `buildCommentBody` tests to verify they pass**
@@ -424,29 +447,36 @@ Expected: PASS (all 3 tests)
 Add to the existing `describe('postFindings', ...)` block (not the new one):
 
 ```ts
-  it('uses buildCommentBody to build the posted comment body', async () => {
-    const postFn = vi.fn().mockResolvedValue(undefined);
-    const findings: Finding[] = [
-      {
-        file: 'src/foo.ts',
-        line: 5,
-        severity: 'high',
-        message: 'Assignment instead of comparison',
-        suggestion: 'Use === for comparison instead of =.',
-        codeSnippet: 'if (score = 100) {',
-        fixedCode: 'if (score === 100) {',
-      },
-    ];
+it("uses buildCommentBody to build the posted comment body", async () => {
+  const postFn = vi.fn().mockResolvedValue(undefined);
+  const findings: Finding[] = [
+    {
+      file: "src/foo.ts",
+      line: 5,
+      severity: "high",
+      message: "Assignment instead of comparison",
+      suggestion: "Use === for comparison instead of =.",
+      codeSnippet: "if (score = 100) {",
+      fixedCode: "if (score === 100) {",
+    },
+  ];
 
-    await postFindings(
-      { token: 'tok', owner: 'acme', repo: 'widgets', prNumber: 1, commitSha: 'sha1', findings },
-      postFn
-    );
+  await postFindings(
+    {
+      token: "tok",
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 1,
+      commitSha: "sha1",
+      findings,
+    },
+    postFn,
+  );
 
-    expect(postFn).toHaveBeenCalledWith(
-      expect.objectContaining({ body: buildCommentBody(findings[0]) })
-    );
-  });
+  expect(postFn).toHaveBeenCalledWith(
+    expect.objectContaining({ body: buildCommentBody(findings[0]) }),
+  );
+});
 ```
 
 - [ ] **Step 14: Run test to verify it fails**

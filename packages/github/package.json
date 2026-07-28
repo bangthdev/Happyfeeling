@@ -13,7 +13,9 @@
     "./logger": "./dist/logger.js",
     "./review/dedup": "./dist/review/dedup.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

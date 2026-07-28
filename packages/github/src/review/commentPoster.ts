@@ -1,5 +1,5 @@
-import { postReviewComment, GithubApiError } from '../github/client.js';
-import type { Finding } from './llmReviewer.js';
+import { postReviewComment, GithubApiError } from "../github/client.js";
+import type { Finding } from "./llmReviewer.js";
 
 export interface PostFindingsParams {
   token: string;
@@ -27,19 +27,27 @@ export function buildCommentBody(finding: Finding): string {
   if (
     finding.codeSnippet === undefined ||
     finding.fixedCode === undefined ||
-    finding.fixedCode.trim() === '' ||
+    finding.fixedCode.trim() === "" ||
     finding.fixedCode.trim() === finding.codeSnippet.trim() ||
-    finding.fixedCode.includes('```')
+    finding.fixedCode.includes("```")
   ) {
     return `${header}\n\n${finding.suggestion}`;
   }
 
-  return [header, '', finding.suggestion, '', '```suggestion', finding.fixedCode, '```'].join('\n');
+  return [
+    header,
+    "",
+    finding.suggestion,
+    "",
+    "```suggestion",
+    finding.fixedCode,
+    "```",
+  ].join("\n");
 }
 
 export async function postFindings(
   params: PostFindingsParams,
-  postFn: typeof postReviewComment = postReviewComment
+  postFn: typeof postReviewComment = postReviewComment,
 ): Promise<PostFindingsResult> {
   const { token, owner, repo, prNumber, commitSha, findings } = params;
   const posted: Finding[] = [];
@@ -56,16 +64,19 @@ export async function postFindings(
         commitSha,
         filePath: finding.file,
         line: finding.line,
-        side: 'RIGHT',
+        side: "RIGHT",
         body: buildCommentBody(finding),
       });
       posted.push(finding);
     } catch (err) {
-      if (err instanceof GithubApiError && err.status === UNPROCESSABLE_ENTITY) {
-        console.error('Skipping finding — line is outside the PR diff:', err);
+      if (
+        err instanceof GithubApiError &&
+        err.status === UNPROCESSABLE_ENTITY
+      ) {
+        console.error("Skipping finding — line is outside the PR diff:", err);
         skipped += 1;
       } else {
-        console.error('Failed to post finding comment:', err);
+        console.error("Failed to post finding comment:", err);
         failed.push(finding);
       }
     }
