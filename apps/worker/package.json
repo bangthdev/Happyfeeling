@@ -1,5 +1,5 @@
 {
-  "name": "@happyfeeling/worker",
+  "name": "@b3-review/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,14 +7,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "pretest": "pnpm --filter @happyfeeling/config build && pnpm --filter @happyfeeling/queue build && pnpm --filter @happyfeeling/db build && pnpm --filter @happyfeeling/github build",
+    "pretest": "pnpm --filter @b3-review/config build && pnpm --filter @b3-review/queue build && pnpm --filter @b3-review/db build && pnpm --filter @b3-review/github build",
     "test": "vitest run"
   },
   "dependencies": {
-    "@happyfeeling/config": "workspace:*",
-    "@happyfeeling/db": "workspace:*",
-    "@happyfeeling/github": "workspace:*",
-    "@happyfeeling/queue": "workspace:*"
+    "@b3-review/config": "workspace:*",
+    "@b3-review/db": "workspace:*",
+    "@b3-review/github": "workspace:*",
+    "@b3-review/queue": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

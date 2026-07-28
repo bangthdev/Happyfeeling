@@ -1,5 +1,5 @@
 {
-  "name": "happyfeeling",
+  "name": "b3-review",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -11,7 +11,7 @@
     "test": "pnpm -r test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dev:bot": "docker compose up -d postgres redis && pnpm --filter @happyfeeling/db migrate:deploy && docker compose build web worker && docker compose up -d web worker && docker compose logs -f web worker"
+    "dev:bot": "docker compose up -d postgres redis && pnpm --filter @b3-review/db migrate:deploy && docker compose build web worker && docker compose up -d web worker && docker compose logs -f web worker"
   },
   "devDependencies": {
     "prettier": "^3.9.6"

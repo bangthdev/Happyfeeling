@@ -14,13 +14,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@happyfeeling/config':
+      '@b3-review/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@happyfeeling/github':
+      '@b3-review/github':
         specifier: workspace:*
         version: link:../../packages/github
-      '@happyfeeling/queue':
+      '@b3-review/queue':
         specifier: workspace:*
         version: link:../../packages/queue
       next:
@@ -54,16 +54,16 @@ importers:
 
   apps/worker:
     dependencies:
-      '@happyfeeling/config':
+      '@b3-review/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@happyfeeling/db':
+      '@b3-review/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@happyfeeling/github':
+      '@b3-review/github':
         specifier: workspace:*
         version: link:../../packages/github
-      '@happyfeeling/queue':
+      '@b3-review/queue':
         specifier: workspace:*
         version: link:../../packages/queue
     devDependencies:
@@ -101,7 +101,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@happyfeeling/config':
+      '@b3-review/config':
         specifier: workspace:*
         version: link:../config
       '@prisma/adapter-pg':
@@ -135,7 +135,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.32.0
         version: 0.32.1
-      '@happyfeeling/config':
+      '@b3-review/config':
         specifier: workspace:*
         version: link:../config
       express:
@@ -172,7 +172,7 @@ importers:
 
   packages/queue:
     dependencies:
-      '@happyfeeling/config':
+      '@b3-review/config':
         specifier: workspace:*
         version: link:../config
       bullmq:

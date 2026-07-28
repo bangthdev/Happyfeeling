@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Job } from "bullmq";
-import type { ReviewJobPayload } from "@happyfeeling/queue";
+import type { ReviewJobPayload } from "@b3-review/queue";
 
-vi.mock("@happyfeeling/db", () => ({
+vi.mock("@b3-review/db", () => ({
   prisma: {
     finding: {
       createMany: vi
@@ -14,8 +14,8 @@ vi.mock("@happyfeeling/db", () => ({
   },
 }));
 
-import { prisma } from "@happyfeeling/db";
-import { PartialPostError } from "@happyfeeling/github/pipeline";
+import { prisma } from "@b3-review/db";
+import { PartialPostError } from "@b3-review/github/pipeline";
 import { processReviewJob } from "./processJob.js";
 
 function fakeJob(data: ReviewJobPayload): Job<ReviewJobPayload> {

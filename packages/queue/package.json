@@ -1,5 +1,5 @@
 {
-  "name": "@happyfeeling/queue",
+  "name": "@b3-review/queue",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,11 @@
   },
   "scripts": {
     "build": "tsc",
-    "pretest": "pnpm --filter @happyfeeling/config build",
+    "pretest": "pnpm --filter @b3-review/config build",
     "test": "vitest run"
   },
   "dependencies": {
-    "@happyfeeling/config": "workspace:*",
+    "@b3-review/config": "workspace:*",
     "bullmq": "^5.80.5",
     "ioredis": "^5.11.1"
   },

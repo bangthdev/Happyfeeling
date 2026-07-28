@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Finding } from "@happyfeeling/github/pipeline";
-import { computeDedupHash } from "@happyfeeling/github/review/dedup";
+import type { Finding } from "@b3-review/github/pipeline";
+import { computeDedupHash } from "@b3-review/github/review/dedup";
 
-vi.mock("@happyfeeling/db", () => ({
+vi.mock("@b3-review/db", () => ({
   prisma: {
     finding: {
       findMany: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock("@happyfeeling/db", () => ({
   },
 }));
 
-import { prisma } from "@happyfeeling/db";
+import { prisma } from "@b3-review/db";
 import { filterNewFindings } from "./dedupFilter.js";
 
 const REPO = "acme/widgets";

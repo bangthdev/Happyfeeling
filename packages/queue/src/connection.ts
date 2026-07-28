@@ -1,5 +1,5 @@
 import { Redis } from "ioredis";
-import { loadRootEnv } from "@happyfeeling/config";
+import { loadRootEnv } from "@b3-review/config";
 
 loadRootEnv(import.meta.url);
 

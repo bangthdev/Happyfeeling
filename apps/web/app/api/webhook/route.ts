@@ -1,6 +1,6 @@
-import { verifySignature } from "@happyfeeling/github/webhook/verify";
-import { parsePullRequestEvent } from "@happyfeeling/github/webhook/parse";
-import { REVIEW_QUEUE_NAME } from "@happyfeeling/queue";
+import { verifySignature } from "@b3-review/github/webhook/verify";
+import { parsePullRequestEvent } from "@b3-review/github/webhook/parse";
+import { REVIEW_QUEUE_NAME } from "@b3-review/queue";
 import { getWebhookSecret } from "../../../lib/config";
 import { reviewQueue } from "../../../lib/queue";
 
