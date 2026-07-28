@@ -11,9 +11,9 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: happyfeeling
-          POSTGRES_PASSWORD: happyfeeling
-          POSTGRES_DB: happyfeeling
+          POSTGRES_USER: b3_review
+          POSTGRES_PASSWORD: b3_review
+          POSTGRES_DB: b3_review
         ports:
           - 5432:5432
         options: >-
@@ -31,7 +31,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://happyfeeling:happyfeeling@localhost:5432/happyfeeling?schema=public
+      DATABASE_URL: postgresql://b3_review:b3_review@localhost:5432/b3_review?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -41,10 +41,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      - run: pnpm --filter @happyfeeling/config build
-      - run: pnpm --filter @happyfeeling/db exec prisma generate
-      - run: pnpm --filter @happyfeeling/db exec prisma migrate deploy
-      - run: pnpm --filter @happyfeeling/db run seed
+      - run: pnpm --filter @b3-review/config build
+      - run: pnpm --filter @b3-review/db exec prisma generate
+      - run: pnpm --filter @b3-review/db exec prisma migrate deploy
+      - run: pnpm --filter @b3-review/db run seed
       - run: pnpm -r build
       - run: pnpm -r test
 
@@ -58,4 +58,4 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @happyfeeling/db exec prisma validate
+      - run: pnpm --filter @b3-review/db exec prisma validate

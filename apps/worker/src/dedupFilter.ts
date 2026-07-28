@@ -1,6 +1,6 @@
-import type { Finding } from "@happyfeeling/github/pipeline";
-import { computeDedupHash } from "@happyfeeling/github/review/dedup";
-import { prisma } from "@happyfeeling/db";
+import type { Finding } from "@b3-review/github/pipeline";
+import { computeDedupHash } from "@b3-review/github/review/dedup";
+import { prisma } from "@b3-review/db";
 
 export async function filterNewFindings(
   repo: string,

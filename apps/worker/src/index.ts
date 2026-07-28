@@ -1,11 +1,11 @@
-import { loadRootEnv } from "@happyfeeling/config";
+import { loadRootEnv } from "@b3-review/config";
 
 loadRootEnv(import.meta.url);
 
-import { createReviewWorker } from "@happyfeeling/queue";
-import { runReviewPipeline } from "@happyfeeling/github/pipeline";
-import { createInstallationTokenProvider } from "@happyfeeling/github/github/auth";
-import { loadConfig } from "@happyfeeling/github/config";
+import { createReviewWorker } from "@b3-review/queue";
+import { runReviewPipeline } from "@b3-review/github/pipeline";
+import { createInstallationTokenProvider } from "@b3-review/github/github/auth";
+import { loadConfig } from "@b3-review/github/config";
 import { processReviewJob } from "./processJob.js";
 import { filterNewFindings } from "./dedupFilter.js";
 

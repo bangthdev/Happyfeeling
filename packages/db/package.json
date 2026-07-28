@@ -1,5 +1,5 @@
 {
-  "name": "@happyfeeling/db",
+  "name": "@b3-review/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@happyfeeling/config": "workspace:*",
+    "@b3-review/config": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^16.4.5"

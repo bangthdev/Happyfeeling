@@ -1,11 +1,11 @@
-name: happyfeeling
+name: b3-review
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: happyfeeling
-      POSTGRES_PASSWORD: happyfeeling
-      POSTGRES_DB: happyfeeling
+      POSTGRES_USER: b3_review
+      POSTGRES_PASSWORD: b3_review
+      POSTGRES_DB: b3_review
     ports:
       - "5432:5432"
     volumes:
@@ -23,7 +23,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
+      DATABASE_URL: postgresql://b3_review:b3_review@postgres:5432/b3_review?schema=public
       REDIS_URL: redis://redis:6379
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
     depends_on:
@@ -35,7 +35,7 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
-      DATABASE_URL: postgresql://happyfeeling:happyfeeling@postgres:5432/happyfeeling?schema=public
+      DATABASE_URL: postgresql://b3_review:b3_review@postgres:5432/b3_review?schema=public
       REDIS_URL: redis://redis:6379
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_PRIVATE_KEY: ${GITHUB_PRIVATE_KEY}

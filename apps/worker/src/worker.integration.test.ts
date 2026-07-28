@@ -3,9 +3,9 @@ import {
   createReviewQueue,
   createReviewWorker,
   REVIEW_QUEUE_NAME,
-} from "@happyfeeling/queue";
-import { prisma } from "@happyfeeling/db";
-import { computeDedupHash } from "@happyfeeling/github/review/dedup";
+} from "@b3-review/queue";
+import { prisma } from "@b3-review/db";
+import { computeDedupHash } from "@b3-review/github/review/dedup";
 import { processReviewJob } from "./processJob.js";
 import { filterNewFindings } from "./dedupFilter.js";
 

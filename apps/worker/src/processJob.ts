@@ -1,14 +1,14 @@
 import type { Job } from "bullmq";
-import type { ReviewJobPayload } from "@happyfeeling/queue";
+import type { ReviewJobPayload } from "@b3-review/queue";
 import type {
   Finding,
   PipelineDeps,
   PipelineResult,
-} from "@happyfeeling/github/pipeline";
-import { PartialPostError } from "@happyfeeling/github/pipeline";
-import type { PullRequestEvent } from "@happyfeeling/github/webhook/parse";
-import { computeDedupHash } from "@happyfeeling/github/review/dedup";
-import { prisma } from "@happyfeeling/db";
+} from "@b3-review/github/pipeline";
+import { PartialPostError } from "@b3-review/github/pipeline";
+import type { PullRequestEvent } from "@b3-review/github/webhook/parse";
+import { computeDedupHash } from "@b3-review/github/review/dedup";
+import { prisma } from "@b3-review/db";
 
 export interface ProcessJobDeps {
   runPipeline: (

@@ -1,5 +1,5 @@
 {
-  "name": "@happyfeeling/github",
+  "name": "@b3-review/github",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,12 +20,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "pretest": "pnpm --filter @happyfeeling/config build",
+    "pretest": "pnpm --filter @b3-review/config build",
     "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
-    "@happyfeeling/config": "workspace:*",
+    "@b3-review/config": "workspace:*",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2"
   },

@@ -1,4 +1,4 @@
-import { createReviewQueue, type ReviewJobPayload } from "@happyfeeling/queue";
+import { createReviewQueue, type ReviewJobPayload } from "@b3-review/queue";
 import type { Queue } from "bullmq";
 import "./config";
 

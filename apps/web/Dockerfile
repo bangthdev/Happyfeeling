@@ -4,7 +4,7 @@ WORKDIR /repo
 
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter "@happyfeeling/web..." build
+RUN pnpm --filter "@b3-review/web..." build
 
 FROM node:20-alpine AS runner
 RUN corepack enable
@@ -14,4 +14,4 @@ ENV NODE_ENV=production
 COPY --from=builder /repo ./
 
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@happyfeeling/web", "start"]
+CMD ["pnpm", "--filter", "@b3-review/web", "start"]
