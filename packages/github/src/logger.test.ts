@@ -17,6 +17,7 @@ describe("logMetrics", () => {
       pr_number: 12,
       findings_count: 2,
       skipped_count: 0,
+      chunks_skipped: 0,
       severity_breakdown: { high: 1, medium: 1 },
       latency_ms: 100,
       tokens_used: 500,

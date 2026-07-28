@@ -5,6 +5,7 @@ export interface Metrics {
   pr_number: number;
   findings_count: number;
   skipped_count: number;
+  chunks_skipped: number;
   severity_breakdown: Record<string, number>;
   latency_ms: number;
   tokens_used: number;

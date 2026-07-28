@@ -14,6 +14,7 @@ export async function filterNewFindings(
       prNumber,
       finding.file,
       finding.line,
+      finding.codeSnippet ?? "",
     );
     if (!byHash.has(dedupHash)) byHash.set(dedupHash, finding);
   }

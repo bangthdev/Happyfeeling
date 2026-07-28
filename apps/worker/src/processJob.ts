@@ -26,7 +26,13 @@ function toDbFinding(repoSlug: string, prNumber: number, finding: Finding) {
     line: finding.line,
     errorType: finding.severity,
     message: finding.message,
-    dedupHash: computeDedupHash(repoSlug, prNumber, finding.file, finding.line),
+    dedupHash: computeDedupHash(
+      repoSlug,
+      prNumber,
+      finding.file,
+      finding.line,
+      finding.codeSnippet ?? "",
+    ),
   };
 }
 
