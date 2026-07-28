@@ -9,10 +9,18 @@ const OPENROUTER_MODEL = "anthropic/claude-haiku-4.5";
 // limit, so a single chunk comfortably covers almost any real PR diff —
 // this is a safety cap against a truly enormous diff, not a routine split.
 const MAX_TOKENS_PER_CHUNK = 100000;
+// Ceiling on total chunks per PR — without it, an unusually large diff scales
+// latency and OpenRouter spend linearly with no upper bound.
+const MAX_CHUNKS = 10;
 // Spacing between chunk calls on the rare diff that needs more than one.
 const CHUNK_DELAY_MS = 1000;
 const DEFAULT_RATE_LIMIT_RETRY_MS = 5000;
 const MAX_RATE_LIMIT_RETRIES = 3;
+// A hung OpenRouter connection would otherwise block the worker job forever —
+// nothing else in the pipeline enforces a ceiling on this request.
+const REQUEST_TIMEOUT_MS = 60000;
+const MAX_TRANSIENT_ERROR_RETRIES = 2;
+const TRANSIENT_ERROR_RETRY_BASE_MS = 1000;
 
 export type SleepFn = (ms: number) => Promise<void>;
 
@@ -22,7 +30,7 @@ const defaultSleep: SleepFn = (ms) =>
 export class PartialReviewError extends Error {
   constructor(
     message: string,
-    public readonly partialResult: ReviewResult,
+    public readonly partialResult: OpenRouterReviewResult,
     public readonly cause: unknown,
   ) {
     super(message);
@@ -192,31 +200,80 @@ async function callOpenRouter(
   messages: OpenRouterMessage[],
   fetchFn: typeof fetch,
   sleepFn: SleepFn,
-  retriesLeft = MAX_RATE_LIMIT_RETRIES,
+  rateLimitRetriesLeft = MAX_RATE_LIMIT_RETRIES,
+  transientErrorRetriesLeft = MAX_TRANSIENT_ERROR_RETRIES,
 ): Promise<OpenRouterResponse> {
-  const res = await fetchFn(OPENROUTER_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      messages,
-      temperature: 0,
-      tools: [FINDINGS_TOOL],
-      tool_choice: { type: "function", function: { name: "submit_findings" } },
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (res.status === 429 && retriesLeft > 0) {
+  let res: Response;
+  try {
+    res = await fetchFn(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages,
+        temperature: 0,
+        tools: [FINDINGS_TOOL],
+        tool_choice: {
+          type: "function",
+          function: { name: "submit_findings" },
+        },
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (transientErrorRetriesLeft <= 0) throw err;
+    await sleepFn(
+      TRANSIENT_ERROR_RETRY_BASE_MS *
+        (MAX_TRANSIENT_ERROR_RETRIES - transientErrorRetriesLeft + 1),
+    );
+    return callOpenRouter(
+      apiKey,
+      messages,
+      fetchFn,
+      sleepFn,
+      rateLimitRetriesLeft,
+      transientErrorRetriesLeft - 1,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (res.status === 429 && rateLimitRetriesLeft > 0) {
     const retryAfterHeader = res.headers?.get?.("retry-after");
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
     const delayMs = Number.isFinite(retryAfterSeconds)
       ? retryAfterSeconds * 1000
       : DEFAULT_RATE_LIMIT_RETRY_MS;
     await sleepFn(delayMs);
-    return callOpenRouter(apiKey, messages, fetchFn, sleepFn, retriesLeft - 1);
+    return callOpenRouter(
+      apiKey,
+      messages,
+      fetchFn,
+      sleepFn,
+      rateLimitRetriesLeft - 1,
+      transientErrorRetriesLeft,
+    );
+  }
+
+  if (res.status >= 500 && transientErrorRetriesLeft > 0) {
+    await sleepFn(
+      TRANSIENT_ERROR_RETRY_BASE_MS *
+        (MAX_TRANSIENT_ERROR_RETRIES - transientErrorRetriesLeft + 1),
+    );
+    return callOpenRouter(
+      apiKey,
+      messages,
+      fetchFn,
+      sleepFn,
+      rateLimitRetriesLeft,
+      transientErrorRetriesLeft - 1,
+    );
   }
 
   if (!res.ok) {
@@ -274,14 +331,24 @@ async function reviewChunk(
   }
 }
 
+export interface OpenRouterReviewResult extends ReviewResult {
+  // Chunks that existed in the diff but were never sent for review because
+  // the PR exceeded MAX_CHUNKS.
+  chunksSkipped: number;
+}
+
 export async function reviewDiff(
   context: ReviewContext,
   apiKey: string,
   fetchFn: typeof fetch = fetch,
   sleepFn: SleepFn = defaultSleep,
-): Promise<ReviewResult> {
-  const chunks = chunkDiff(context.diff, MAX_TOKENS_PER_CHUNK);
-  if (chunks.length === 0) return { findings: [], tokensUsed: 0 };
+): Promise<OpenRouterReviewResult> {
+  const allChunks = chunkDiff(context.diff, MAX_TOKENS_PER_CHUNK);
+  if (allChunks.length === 0)
+    return { findings: [], tokensUsed: 0, chunksSkipped: 0 };
+
+  const chunks = allChunks.slice(0, MAX_CHUNKS);
+  const chunksSkipped = allChunks.length - chunks.length;
 
   const findings: Finding[] = [];
   let tokensUsed = 0;
@@ -298,7 +365,7 @@ export async function reviewDiff(
       if (i === 0) throw err;
       throw new PartialReviewError(
         `OpenRouter review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
-        { findings, tokensUsed },
+        { findings, tokensUsed, chunksSkipped },
         err,
       );
     }
@@ -310,5 +377,5 @@ export async function reviewDiff(
     }
   }
 
-  return { findings, tokensUsed };
+  return { findings, tokensUsed, chunksSkipped };
 }

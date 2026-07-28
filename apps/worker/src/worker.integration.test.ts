@@ -135,12 +135,14 @@ describe("filterNewFindings (real Postgres)", () => {
       severity: "medium" as const,
       message: "msg",
       suggestion: "sugg",
+      codeSnippet: "const x = 1;",
     };
     const dedupHash = computeDedupHash(
       repo,
       prNumber,
       finding.file,
       finding.line,
+      finding.codeSnippet,
     );
 
     const seeded = await prisma.finding.create({

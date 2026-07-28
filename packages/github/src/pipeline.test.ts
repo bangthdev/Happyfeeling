@@ -65,6 +65,7 @@ describe("runReviewPipeline", () => {
         },
       ],
       tokensUsed: 300,
+      chunksSkipped: 0,
     });
     vi.mocked(postFindings).mockResolvedValue({
       posted: [
@@ -149,6 +150,7 @@ describe("runReviewPipeline", () => {
         },
       ],
       tokensUsed: 300,
+      chunksSkipped: 0,
     });
     vi.mocked(postFindings).mockResolvedValue({
       posted: [],
@@ -169,6 +171,45 @@ describe("runReviewPipeline", () => {
 
     expect(logMetrics).toHaveBeenCalledWith(
       expect.objectContaining({ skipped_count: 2 }),
+    );
+  });
+
+  it("includes chunks_skipped in metrics when reviewDiff caps a very large diff", async () => {
+    const event: PullRequestEvent = {
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 7,
+      headSha: "sha1",
+      action: "opened",
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue(
+      "diff --git a/src/x.ts b/src/x.ts\n...",
+    );
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: [],
+      tokensUsed: 300,
+      chunksSkipped: 3,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [],
+      skipped: 0,
+      failed: [],
+    });
+
+    const getToken = vi.fn().mockResolvedValue("tok");
+    const filterNewFindings = vi
+      .fn()
+      .mockImplementation(async (_repo, _prNumber, findings) => findings);
+
+    await runReviewPipeline(event, {
+      getToken,
+      openrouterApiKey: "fake-openrouter-key",
+      filterNewFindings,
+    });
+
+    expect(logMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ chunks_skipped: 3 }),
     );
   });
 
@@ -201,6 +242,7 @@ describe("runReviewPipeline", () => {
     vi.mocked(reviewDiff).mockResolvedValue({
       findings: [seen, fresh],
       tokensUsed: 300,
+      chunksSkipped: 0,
     });
     vi.mocked(postFindings).mockResolvedValue({
       posted: [fresh],
@@ -262,6 +304,7 @@ describe("runReviewPipeline", () => {
         },
       ],
       tokensUsed: 500,
+      chunksSkipped: 0,
     });
     const posted = [
       {
@@ -336,7 +379,7 @@ describe("runReviewPipeline", () => {
     vi.mocked(reviewDiff).mockRejectedValue(
       new PartialReviewError(
         "OpenRouter review failed on chunk 2/3",
-        { findings: partialFindings, tokensUsed: 150 },
+        { findings: partialFindings, tokensUsed: 150, chunksSkipped: 4 },
         new Error("401"),
       ),
     );
@@ -369,6 +412,7 @@ describe("runReviewPipeline", () => {
         pr_number: 7,
         findings_count: 1,
         tokens_used: 150,
+        chunks_skipped: 4,
       }),
     );
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);

@@ -29,7 +29,7 @@ function finding(overrides: Partial<Finding> = {}): Finding {
 }
 
 function hashOf(f: Finding): string {
-  return computeDedupHash(REPO, PR, f.file, f.line);
+  return computeDedupHash(REPO, PR, f.file, f.line, f.codeSnippet ?? "");
 }
 
 describe("filterNewFindings", () => {
@@ -135,6 +135,18 @@ describe("filterNewFindings", () => {
     expect(result).toEqual([fresh]);
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
     consoleErrorSpy.mockRestore();
+  });
+
+  it("keeps a finding at the same file+line as an already-seen finding when its codeSnippet differs", async () => {
+    const oldFinding = finding({ codeSnippet: "const x = 1;" });
+    const newFinding = finding({ codeSnippet: "const x = getUserInput();" });
+    vi.mocked(prisma.finding.findMany).mockResolvedValue([
+      { dedupHash: hashOf(oldFinding) },
+    ] as never);
+
+    const result = await filterNewFindings(REPO, PR, [newFinding]);
+
+    expect(result).toEqual([newFinding]);
   });
 
   it("returns an empty array without querying the DB when there are no findings", async () => {

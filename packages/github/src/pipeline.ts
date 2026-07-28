@@ -56,14 +56,15 @@ export async function runReviewPipeline(
 
   let findings: Finding[];
   let tokensUsed: number;
+  let chunksSkipped = 0;
   try {
-    ({ findings, tokensUsed } = await reviewDiff(
+    ({ findings, tokensUsed, chunksSkipped } = await reviewDiff(
       context,
       deps.openrouterApiKey,
     ));
   } catch (err) {
     if (!(err instanceof PartialReviewError)) throw err;
-    ({ findings, tokensUsed } = err.partialResult);
+    ({ findings, tokensUsed, chunksSkipped } = err.partialResult);
     console.error(
       `PR #${event.prNumber}: OpenRouter review failed partway through — posting the ${findings.length} finding(s) already collected instead of discarding them`,
       err.cause,
@@ -95,6 +96,7 @@ export async function runReviewPipeline(
     pr_number: event.prNumber,
     findings_count: posted.length,
     skipped_count: skipped,
+    chunks_skipped: chunksSkipped,
     severity_breakdown: severityBreakdown,
     latency_ms: Date.now() - start,
     tokens_used: tokensUsed,

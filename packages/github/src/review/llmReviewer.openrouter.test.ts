@@ -841,4 +841,180 @@ diff --git a/src/other.ts b/src/other.ts
     expect(callCount).toBe(2);
     expect(sleepFn).toHaveBeenCalledWith(5000);
   });
+
+  it("retries with backoff on a 500 server error, then succeeds", async () => {
+    let callCount = 0;
+    const fetchFn = fakeFetch(async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return { ok: false, status: 500, text: async () => "server error" };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_findings",
+                      arguments: JSON.stringify({ findings: [] }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 5 },
+        }),
+      };
+    });
+
+    const sleepFn = vi.fn(async () => {});
+
+    const result = await reviewDiff(
+      { diff: "diff...", files: [] },
+      "fake-key",
+      fetchFn,
+      sleepFn,
+    );
+
+    expect(callCount).toBe(2);
+    expect(result.findings).toEqual([]);
+    expect(sleepFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries when the fetch call itself throws (network error), then succeeds", async () => {
+    let callCount = 0;
+    const fetchFn = fakeFetch(async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        throw new Error("network error");
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_findings",
+                      arguments: JSON.stringify({ findings: [] }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 5 },
+        }),
+      };
+    });
+
+    const sleepFn = vi.fn(async () => {});
+
+    const result = await reviewDiff(
+      { diff: "diff...", files: [] },
+      "fake-key",
+      fetchFn,
+      sleepFn,
+    );
+
+    expect(callCount).toBe(2);
+    expect(result.findings).toEqual([]);
+  });
+
+  it("throws after exhausting retries on persistent 5xx failures, without retrying forever", async () => {
+    let callCount = 0;
+    const fetchFn = fakeFetch(async () => {
+      callCount += 1;
+      return { ok: false, status: 503, text: async () => "unavailable" };
+    });
+
+    const sleepFn = vi.fn(async () => {});
+
+    await expect(
+      reviewDiff({ diff: "diff...", files: [] }, "fake-key", fetchFn, sleepFn),
+    ).rejects.toThrow(/OpenRouter API error: 503/);
+    expect(callCount).toBeGreaterThan(1);
+    expect(callCount).toBeLessThan(10);
+  });
+
+  it("sends the request with an AbortSignal so a hung connection cannot block forever", async () => {
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: "submit_findings",
+                    arguments: JSON.stringify({ findings: [] }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 5 },
+      }),
+    }));
+
+    await reviewDiff({ diff: "diff...", files: [] }, "fake-key", fetchFn);
+
+    const [, requestInit] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((requestInit as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("caps the number of chunks reviewed for a very large diff, and reports how many were skipped", async () => {
+    const bigLine = "+".repeat(220000);
+    const bigFile = (path: string) =>
+      `diff --git a/${path} b/${path}\n@@ -1,1 +1,1 @@\n${bigLine}\n`;
+    const totalFiles = 12;
+    const diff = Array.from({ length: totalFiles }, (_, i) =>
+      bigFile(`file${i}.ts`),
+    ).join("");
+    const files = Array.from({ length: totalFiles }, (_, i) => `file${i}.ts`);
+
+    let callCount = 0;
+    const fetchFn = fakeFetch(async () => {
+      callCount += 1;
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_findings",
+                      arguments: JSON.stringify({ findings: [] }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 5, completion_tokens: 5 },
+        }),
+      };
+    });
+    const sleepFn = vi.fn(async () => {});
+
+    const result = await reviewDiff(
+      { diff, files },
+      "fake-key",
+      fetchFn,
+      sleepFn,
+    );
+
+    expect(callCount).toBe(10);
+    expect(result.chunksSkipped).toBe(2);
+  });
 });
