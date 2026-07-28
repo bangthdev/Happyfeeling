@@ -76,7 +76,7 @@ export async function runReviewPipeline(
     findings,
   );
 
-  const { posted, failed } = await postFindings({
+  const { posted, skipped, failed } = await postFindings({
     token,
     owner: event.owner,
     repo: event.repo,
@@ -94,6 +94,7 @@ export async function runReviewPipeline(
   logMetrics({
     pr_number: event.prNumber,
     findings_count: posted.length,
+    skipped_count: skipped,
     severity_breakdown: severityBreakdown,
     latency_ms: Date.now() - start,
     tokens_used: tokensUsed,

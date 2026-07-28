@@ -126,6 +126,52 @@ describe("runReviewPipeline", () => {
     );
   });
 
+  it("includes skipped_count in metrics when postFindings reports findings GitHub rejected", async () => {
+    const event: PullRequestEvent = {
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 7,
+      headSha: "sha1",
+      action: "opened",
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue(
+      "diff --git a/src/x.ts b/src/x.ts\n...",
+    );
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: [
+        {
+          file: "src/x.ts",
+          line: 1,
+          severity: "high",
+          message: "m",
+          suggestion: "s",
+        },
+      ],
+      tokensUsed: 300,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [],
+      skipped: 2,
+      failed: [],
+    });
+
+    const getToken = vi.fn().mockResolvedValue("tok");
+    const filterNewFindings = vi
+      .fn()
+      .mockImplementation(async (_repo, _prNumber, findings) => findings);
+
+    await runReviewPipeline(event, {
+      getToken,
+      openrouterApiKey: "fake-openrouter-key",
+      filterNewFindings,
+    });
+
+    expect(logMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ skipped_count: 2 }),
+    );
+  });
+
   it("only posts findings that filterNewFindings has not already marked as seen", async () => {
     const event: PullRequestEvent = {
       owner: "acme",
