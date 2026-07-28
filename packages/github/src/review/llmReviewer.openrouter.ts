@@ -76,7 +76,26 @@ interface RawFinding {
 }
 
 function buildPrompt(context: ReviewContext): string {
-  return `Bạn là một senior engineer đang review Pull Request. Đọc diff dưới đây và liệt kê TẤT CẢ các vấn đề thật sự quan trọng (bug, security, logic sai) mà bạn tìm thấy — không chỉ vấn đề nghiêm trọng nhất. Nếu diff có nhiều vấn đề độc lập (kể cả trong cùng 1 file), mỗi vấn đề phải là 1 phần tử riêng trong mảng findings. Bỏ qua nitpick về style/format. Nếu không có vấn đề gì, trả về findings rỗng.\n\nVới mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.\n\nTrường "fixedCode" phải là bản đã sửa đúng lỗi mô tả trong "message", giữ nguyên style/indent gốc — 1 dòng nếu fix chỉ cần 1 dòng, nhiều dòng nếu bug thực sự cần sửa nhiều dòng mới hết lỗi.\n\nDiff:\n${context.diff}`;
+  return `Bạn là senior engineer review Pull Request trước khi merge vào production. Người đọc kết quả review là tác giả PR — họ dựa đúng vào danh sách bạn đưa ra để quyết định sửa gì trước khi merge, không tự soát lại thêm. Nếu bạn bỏ sót 1 lỗi, lỗi đó sẽ lọt thẳng vào production.
+
+Vì vậy, review kỹ theo TỪNG hạng mục dưới đây, không chỉ báo cáo lỗi "nổi bật" nhất bạn thấy ngay:
+- Xử lý lỗi: return/throw bị bỏ qua, error bị nuốt (catch rỗng), thiếu check err/exception?
+- Null/undefined: có chỗ truy cập field hoặc gọi hàm trên giá trị có thể null/undefined mà chưa check không?
+- Điều kiện biên & logic: off-by-one, so sánh sai chiều (\`<\` thay vì \`<=\`), vòng lặp sai điều kiện dừng?
+- Concurrency: race condition, shared state bị sửa không đồng bộ, thiếu lock ở chỗ cần?
+- Auth/authz: endpoint hoặc thao tác nhạy cảm thiếu check quyền/xác thực?
+- Input validation & injection: dữ liệu từ bên ngoài (user input, API response) có được validate trước khi dùng không?
+- Resource leak: file/connection/goroutine mở ra nhưng không đóng ở mọi nhánh, kể cả nhánh lỗi?
+- Type/schema mismatch: field đổi type/shape ở 1 chỗ nhưng nơi dùng khác chưa cập nhật theo?
+
+Liệt kê TẤT CẢ vấn đề tìm thấy thuộc các hạng mục trên — không chỉ vấn đề nghiêm trọng nhất. Nếu diff có nhiều vấn đề độc lập (kể cả trong cùng 1 file), mỗi vấn đề phải là 1 phần tử riêng trong mảng findings. Chỉ báo cáo vấn đề thuộc các hạng mục trên — không báo cáo nitpick thuần về style/format (đặt tên biến, thụt lề, thứ tự import). Nếu không có vấn đề gì, trả về findings rỗng.
+
+Với mỗi finding, trường "codeSnippet" phải là chép NGUYÊN VĂN (verbatim) đúng 1 dòng code trong diff nơi xảy ra vấn đề — không tự diễn giải, không thêm/bớt khoảng trắng.
+
+Trường "fixedCode" phải là bản đã sửa đúng lỗi mô tả trong "message", giữ nguyên style/indent gốc — 1 dòng nếu fix chỉ cần 1 dòng, nhiều dòng nếu bug thực sự cần sửa nhiều dòng mới hết lỗi.
+
+Diff:
+${context.diff}`;
 }
 
 // Finds the line in a single file's diff block whose content matches target
