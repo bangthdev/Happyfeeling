@@ -8,17 +8,17 @@ Bot tự động review Pull Request bằng Claude API: nhận webhook khi có P
 
 ## Quyết định thiết kế
 
-| Hạng mục | Quyết định | Lý do |
-|---|---|---|
-| Project | Riêng biệt, không nằm trong b3-mono | Side project cá nhân để học |
-| Ngôn ngữ | TypeScript/Node | Đã quyết định trước |
-| Framework | Express | Nhiều tutorial, dễ tìm khi stuck |
-| LLM | Claude API (Anthropic) | Đã chọn |
-| GitHub auth | GitHub App (JWT → installation token) | Đúng chuẩn production, permission scoping rõ ràng |
-| Context strategy | Static Context Builder | Rẻ, nhanh, đủ cho MVP; Agentic Session để giai đoạn sau |
-| Lưu metrics | Console/file log | Tránh học DB + JWT cùng lúc; SQLite để giai đoạn 2 |
-| Repo test | 1 repo cá nhân đã có sẵn | Test thực tế hơn repo demo trống |
-| Hạ tầng | Local + ngrok/tunnel | Setup nhanh, deploy thật để sau |
+| Hạng mục         | Quyết định                            | Lý do                                                   |
+| ---------------- | ------------------------------------- | ------------------------------------------------------- |
+| Project          | Riêng biệt, không nằm trong b3-mono   | Side project cá nhân để học                             |
+| Ngôn ngữ         | TypeScript/Node                       | Đã quyết định trước                                     |
+| Framework        | Express                               | Nhiều tutorial, dễ tìm khi stuck                        |
+| LLM              | Claude API (Anthropic)                | Đã chọn                                                 |
+| GitHub auth      | GitHub App (JWT → installation token) | Đúng chuẩn production, permission scoping rõ ràng       |
+| Context strategy | Static Context Builder                | Rẻ, nhanh, đủ cho MVP; Agentic Session để giai đoạn sau |
+| Lưu metrics      | Console/file log                      | Tránh học DB + JWT cùng lúc; SQLite để giai đoạn 2      |
+| Repo test        | 1 repo cá nhân đã có sẵn              | Test thực tế hơn repo demo trống                        |
+| Hạ tầng          | Local + ngrok/tunnel                  | Setup nhanh, deploy thật để sau                         |
 
 ## Kiến trúc pipeline
 
@@ -52,18 +52,19 @@ GitHub PR event
 
 ## Components
 
-| Component | Nhiệm vụ | Input → Output |
-|---|---|---|
-| Webhook Receiver | Nhận POST từ GitHub, verify HMAC signature | raw request → `{repo, pr_number, action}` |
-| Auth Module | Ký JWT, đổi installation token | private key → token (cache đến khi hết hạn) |
-| Context Builder | Gọi API lấy diff + file liên quan | pr_number → `{diff, files[]}` |
-| LLM Reviewer | Gửi prompt, ép Claude trả JSON | diff + context → `Finding[]` |
-| Comment Poster | Map dòng diff-hunk, gọi API post comment | `Finding[]` → comment trên GitHub |
-| Logger | Ghi metrics ra file/console | run info → dòng log JSON |
+| Component        | Nhiệm vụ                                   | Input → Output                              |
+| ---------------- | ------------------------------------------ | ------------------------------------------- |
+| Webhook Receiver | Nhận POST từ GitHub, verify HMAC signature | raw request → `{repo, pr_number, action}`   |
+| Auth Module      | Ký JWT, đổi installation token             | private key → token (cache đến khi hết hạn) |
+| Context Builder  | Gọi API lấy diff + file liên quan          | pr_number → `{diff, files[]}`               |
+| LLM Reviewer     | Gửi prompt, ép Claude trả JSON             | diff + context → `Finding[]`                |
+| Comment Poster   | Map dòng diff-hunk, gọi API post comment   | `Finding[]` → comment trên GitHub           |
+| Logger           | Ghi metrics ra file/console                | run info → dòng log JSON                    |
 
 ## Data structures
 
 **Finding** (nội dung review, sẽ post thành comment):
+
 ```json
 {
   "file": "src/auth/login.ts",
@@ -75,6 +76,7 @@ GitHub PR event
 ```
 
 **Metrics** (log về quá trình chạy, không phải nội dung review):
+
 ```json
 {
   "pr_number": 12,

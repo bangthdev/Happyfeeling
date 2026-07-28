@@ -1,10 +1,10 @@
-import type { ReviewContext } from './contextBuilder.js';
-import { splitDiffByFile, filePathOf } from './contextBuilder.js';
-import type { Finding, ReviewResult } from './llmReviewer.js';
-import { chunkDiff } from './diffChunker.js';
+import type { ReviewContext } from "./contextBuilder.js";
+import { splitDiffByFile, filePathOf } from "./contextBuilder.js";
+import type { Finding, ReviewResult } from "./llmReviewer.js";
+import { chunkDiff } from "./diffChunker.js";
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODEL = 'anthropic/claude-haiku-4.5';
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODEL = "anthropic/claude-haiku-4.5";
 // OpenRouter/Claude has nowhere near Groq's punishing 12k TPM free-tier
 // limit, so a single chunk comfortably covers almost any real PR diff —
 // this is a safety cap against a truly enormous diff, not a routine split.
@@ -16,44 +16,52 @@ const MAX_RATE_LIMIT_RETRIES = 3;
 
 export type SleepFn = (ms: number) => Promise<void>;
 
-const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const defaultSleep: SleepFn = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export class PartialReviewError extends Error {
   constructor(
     message: string,
     public readonly partialResult: ReviewResult,
-    public readonly cause: unknown
+    public readonly cause: unknown,
   ) {
     super(message);
-    this.name = 'PartialReviewError';
+    this.name = "PartialReviewError";
   }
 }
 
 const FINDINGS_TOOL = {
-  type: 'function' as const,
+  type: "function" as const,
   function: {
-    name: 'submit_findings',
-    description: 'Submit the list of code review findings found in the diff',
+    name: "submit_findings",
+    description: "Submit the list of code review findings found in the diff",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         findings: {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              file: { type: 'string' },
-              codeSnippet: { type: 'string' },
-              fixedCode: { type: 'string' },
-              severity: { type: 'string', enum: ['high', 'medium', 'low'] },
-              message: { type: 'string' },
-              suggestion: { type: 'string' },
+              file: { type: "string" },
+              codeSnippet: { type: "string" },
+              fixedCode: { type: "string" },
+              severity: { type: "string", enum: ["high", "medium", "low"] },
+              message: { type: "string" },
+              suggestion: { type: "string" },
             },
-            required: ['file', 'codeSnippet', 'fixedCode', 'severity', 'message', 'suggestion'],
+            required: [
+              "file",
+              "codeSnippet",
+              "fixedCode",
+              "severity",
+              "message",
+              "suggestion",
+            ],
           },
         },
       },
-      required: ['findings'],
+      required: ["findings"],
     },
   },
 };
@@ -62,7 +70,7 @@ interface RawFinding {
   file: string;
   codeSnippet: string;
   fixedCode: string;
-  severity: Finding['severity'];
+  severity: Finding["severity"];
   message: string;
   suggestion: string;
 }
@@ -77,7 +85,7 @@ function findLineInBlock(block: string, target: string): number | null {
   let newLine = 0;
   let inHunk = false;
 
-  for (const line of block.split('\n')) {
+  for (const line of block.split("\n")) {
     const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
     if (hunkMatch) {
       newLine = Number(hunkMatch[1]) - 1;
@@ -85,7 +93,7 @@ function findLineInBlock(block: string, target: string): number | null {
       continue;
     }
     if (!inHunk) continue;
-    if (line.startsWith('-')) continue;
+    if (line.startsWith("-")) continue;
 
     newLine++;
     if (line.slice(1).trim() === target) return newLine;
@@ -104,7 +112,7 @@ function findLineInBlock(block: string, target: string): number | null {
 function resolveFileAndLine(
   diff: string,
   codeSnippet: string,
-  hintFile: string
+  hintFile: string,
 ): { file: string; line: number } | null {
   const target = codeSnippet.trim();
   const matches: { file: string; line: number }[] = [];
@@ -115,7 +123,7 @@ function resolveFileAndLine(
     if (line === null) continue;
 
     const file = filePathOf(block);
-    if (file === '') {
+    if (file === "") {
       hasUnresolvableMatch = true;
       continue;
     }
@@ -134,7 +142,11 @@ function resolveFileAndLine(
 function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
   const findings: Finding[] = [];
   for (const finding of raw) {
-    const resolved = resolveFileAndLine(context.diff, finding.codeSnippet, finding.file);
+    const resolved = resolveFileAndLine(
+      context.diff,
+      finding.codeSnippet,
+      finding.file,
+    );
     if (resolved === null) continue;
     findings.push({
       file: resolved.file,
@@ -150,7 +162,7 @@ function resolveFindings(context: ReviewContext, raw: RawFinding[]): Finding[] {
 }
 
 interface OpenRouterMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 
@@ -165,10 +177,13 @@ interface OpenRouterResponse {
 
 function parseFindings(response: OpenRouterResponse): RawFinding[] {
   const toolCall = response.choices[0]?.message.tool_calls?.[0];
-  if (!toolCall) throw new Error('No tool call in OpenRouter response');
+  if (!toolCall) throw new Error("No tool call in OpenRouter response");
 
-  const args = JSON.parse(toolCall.function.arguments) as { findings: RawFinding[] };
-  if (!Array.isArray(args.findings)) throw new Error('findings is not an array');
+  const args = JSON.parse(toolCall.function.arguments) as {
+    findings: RawFinding[];
+  };
+  if (!Array.isArray(args.findings))
+    throw new Error("findings is not an array");
   return args.findings;
 }
 
@@ -177,27 +192,29 @@ async function callOpenRouter(
   messages: OpenRouterMessage[],
   fetchFn: typeof fetch,
   sleepFn: SleepFn,
-  retriesLeft = MAX_RATE_LIMIT_RETRIES
+  retriesLeft = MAX_RATE_LIMIT_RETRIES,
 ): Promise<OpenRouterResponse> {
   const res = await fetchFn(OPENROUTER_API_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
       messages,
       temperature: 0,
       tools: [FINDINGS_TOOL],
-      tool_choice: { type: 'function', function: { name: 'submit_findings' } },
+      tool_choice: { type: "function", function: { name: "submit_findings" } },
     }),
   });
 
   if (res.status === 429 && retriesLeft > 0) {
-    const retryAfterHeader = res.headers?.get?.('retry-after');
+    const retryAfterHeader = res.headers?.get?.("retry-after");
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
-    const delayMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : DEFAULT_RATE_LIMIT_RETRY_MS;
+    const delayMs = Number.isFinite(retryAfterSeconds)
+      ? retryAfterSeconds * 1000
+      : DEFAULT_RATE_LIMIT_RETRY_MS;
     await sleepFn(delayMs);
     return callOpenRouter(apiKey, messages, fetchFn, sleepFn, retriesLeft - 1);
   }
@@ -212,30 +229,48 @@ async function reviewChunk(
   context: ReviewContext,
   apiKey: string,
   fetchFn: typeof fetch,
-  sleepFn: SleepFn
+  sleepFn: SleepFn,
 ): Promise<ReviewResult> {
-  const messages: OpenRouterMessage[] = [{ role: 'user', content: buildPrompt(context) }];
+  const messages: OpenRouterMessage[] = [
+    { role: "user", content: buildPrompt(context) },
+  ];
 
   const response = await callOpenRouter(apiKey, messages, fetchFn, sleepFn);
-  const tokensUsed = response.usage.prompt_tokens + response.usage.completion_tokens;
+  const tokensUsed =
+    response.usage.prompt_tokens + response.usage.completion_tokens;
 
   try {
-    return { findings: resolveFindings(context, parseFindings(response)), tokensUsed };
+    return {
+      findings: resolveFindings(context, parseFindings(response)),
+      tokensUsed,
+    };
   } catch {
     const retryMessages: OpenRouterMessage[] = [
       ...messages,
       {
-        role: 'assistant',
+        role: "assistant",
         content: JSON.stringify(response.choices[0]?.message ?? {}),
       },
       {
-        role: 'user',
-        content: 'Kết quả không đúng format yêu cầu. Hãy gọi lại tool submit_findings với đúng schema.',
+        role: "user",
+        content:
+          "Kết quả không đúng format yêu cầu. Hãy gọi lại tool submit_findings với đúng schema.",
       },
     ];
-    const retryResponse = await callOpenRouter(apiKey, retryMessages, fetchFn, sleepFn);
-    const retryTokensUsed = tokensUsed + retryResponse.usage.prompt_tokens + retryResponse.usage.completion_tokens;
-    return { findings: resolveFindings(context, parseFindings(retryResponse)), tokensUsed: retryTokensUsed };
+    const retryResponse = await callOpenRouter(
+      apiKey,
+      retryMessages,
+      fetchFn,
+      sleepFn,
+    );
+    const retryTokensUsed =
+      tokensUsed +
+      retryResponse.usage.prompt_tokens +
+      retryResponse.usage.completion_tokens;
+    return {
+      findings: resolveFindings(context, parseFindings(retryResponse)),
+      tokensUsed: retryTokensUsed,
+    };
   }
 }
 
@@ -243,7 +278,7 @@ export async function reviewDiff(
   context: ReviewContext,
   apiKey: string,
   fetchFn: typeof fetch = fetch,
-  sleepFn: SleepFn = defaultSleep
+  sleepFn: SleepFn = defaultSleep,
 ): Promise<ReviewResult> {
   const chunks = chunkDiff(context.diff, MAX_TOKENS_PER_CHUNK);
   if (chunks.length === 0) return { findings: [], tokensUsed: 0 };
@@ -264,7 +299,7 @@ export async function reviewDiff(
       throw new PartialReviewError(
         `OpenRouter review failed on chunk ${i + 1}/${chunks.length} after ${findings.length} finding(s) already collected`,
         { findings, tokensUsed },
-        err
+        err,
       );
     }
     findings.push(...result.findings);

@@ -24,6 +24,7 @@ cp .env.example .env
 ```
 
 Điền vào `.env`:
+
 - `GITHUB_APP_ID` — App ID ở bước 6
 - `GITHUB_PRIVATE_KEY` — nội dung file `.pem` ở bước 7, giữ nguyên `\n` xuống dòng
 - `GITHUB_INSTALLATION_ID` — ở bước 8

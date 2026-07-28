@@ -1,14 +1,14 @@
-import { createServer } from './server.js';
-import { loadConfig } from './config.js';
-import { createInstallationTokenProvider } from './github/auth.js';
-import { runReviewPipeline, passthroughFilterNewFindings } from './pipeline.js';
+import { createServer } from "./server.js";
+import { loadConfig } from "./config.js";
+import { createInstallationTokenProvider } from "./github/auth.js";
+import { runReviewPipeline, passthroughFilterNewFindings } from "./pipeline.js";
 
 const config = loadConfig();
 
 const tokenProvider = createInstallationTokenProvider(
   config.githubAppId,
   config.githubPrivateKey,
-  config.githubInstallationId
+  config.githubInstallationId,
 );
 
 const app = createServer({

@@ -6,10 +6,10 @@ export interface PullRequestEvent {
   action: string;
 }
 
-const RELEVANT_ACTIONS = new Set(['opened', 'synchronize']);
+const RELEVANT_ACTIONS = new Set(["opened", "synchronize"]);
 
 export function parsePullRequestEvent(body: unknown): PullRequestEvent | null {
-  if (!body || typeof body !== 'object') return null;
+  if (!body || typeof body !== "object") return null;
   const payload = body as Record<string, any>;
 
   if (!payload.pull_request || !payload.repository) return null;

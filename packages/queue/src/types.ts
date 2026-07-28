@@ -1,4 +1,4 @@
-export const REVIEW_QUEUE_NAME = 'review';
+export const REVIEW_QUEUE_NAME = "review";
 
 export interface ReviewJobPayload {
   owner: string;

@@ -23,6 +23,7 @@
 ### Task 1: Scaffold package + Redis connection (`connection.ts`)
 
 **Files:**
+
 - Create: `packages/queue/package.json`
 - Create: `packages/queue/tsconfig.json`
 - Create: `packages/queue/vitest.config.ts`
@@ -31,6 +32,7 @@
 - Modify: `.env.example` (thêm dòng `REDIS_URL=redis://localhost:6379`)
 
 **Interfaces:**
+
 - Produces: `createRedisConnection(): IORedis` — trả về 1 kết nối ioredis mới mỗi lần gọi, đọc `REDIS_URL` từ env (mặc định `redis://localhost:6379`), luôn set `maxRetriesPerRequest: null`.
 
 - [ ] **Step 1: Tạo `package.json`**
@@ -74,11 +76,11 @@
 - [ ] **Step 3: Tạo `vitest.config.ts`**
 
 ```typescript
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: "node",
     fileParallelism: false,
   },
 });
@@ -106,14 +108,14 @@ Expected: container `happyfeeling-redis-1` (hoặc tên tương tự) ở trạn
 
 ```typescript
 // packages/queue/src/connection.test.ts
-import { describe, expect, it } from 'vitest';
-import { createRedisConnection } from './connection.js';
+import { describe, expect, it } from "vitest";
+import { createRedisConnection } from "./connection.js";
 
-describe('createRedisConnection', () => {
-  it('connects to Redis and responds to PING', async () => {
+describe("createRedisConnection", () => {
+  it("connects to Redis and responds to PING", async () => {
     const connection = createRedisConnection();
     const result = await connection.ping();
-    expect(result).toBe('PONG');
+    expect(result).toBe("PONG");
     await connection.quit();
   });
 });
@@ -128,10 +130,10 @@ Expected: FAIL — `Cannot find module './connection.js'` (file `connection.ts` 
 
 ```typescript
 // packages/queue/src/connection.ts
-import IORedis from 'ioredis';
+import IORedis from "ioredis";
 
 export function createRedisConnection(): IORedis {
-  const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
+  const url = process.env.REDIS_URL ?? "redis://localhost:6379";
   return new IORedis(url, { maxRetriesPerRequest: null });
 }
 ```
@@ -153,10 +155,12 @@ git commit -m "feat(queue): scaffold package and Redis connection factory"
 ### Task 2: Queue contract types (`types.ts`)
 
 **Files:**
+
 - Create: `packages/queue/src/types.ts`
 - Test: `packages/queue/src/types.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `REVIEW_QUEUE_NAME: string`, `interface ReviewJobPayload { owner: string; repo: string; prNumber: number; headSha: string }` — Task 3 và Task 4 import cả hai từ đây.
 
@@ -164,12 +168,12 @@ git commit -m "feat(queue): scaffold package and Redis connection factory"
 
 ```typescript
 // packages/queue/src/types.test.ts
-import { describe, expect, it } from 'vitest';
-import { REVIEW_QUEUE_NAME } from './types.js';
+import { describe, expect, it } from "vitest";
+import { REVIEW_QUEUE_NAME } from "./types.js";
 
-describe('REVIEW_QUEUE_NAME', () => {
-  it('is a non-empty string', () => {
-    expect(REVIEW_QUEUE_NAME).toBe('review');
+describe("REVIEW_QUEUE_NAME", () => {
+  it("is a non-empty string", () => {
+    expect(REVIEW_QUEUE_NAME).toBe("review");
   });
 });
 ```
@@ -185,7 +189,7 @@ Expected: FAIL — `Cannot find module './types.js'`.
 
 ```typescript
 // packages/queue/src/types.ts
-export const REVIEW_QUEUE_NAME = 'review';
+export const REVIEW_QUEUE_NAME = "review";
 
 export interface ReviewJobPayload {
   owner: string;
@@ -212,10 +216,12 @@ git commit -m "feat(queue): add REVIEW_QUEUE_NAME and ReviewJobPayload contract"
 ### Task 3: Queue factory (`queue.ts`)
 
 **Files:**
+
 - Create: `packages/queue/src/queue.ts`
 - Test: `packages/queue/src/queue.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createRedisConnection()` (Task 1), `REVIEW_QUEUE_NAME`, `ReviewJobPayload` (Task 2).
 - Produces: `createReviewQueue(): Queue<ReviewJobPayload>` — Task 4 dùng để add job trong test round-trip; Track A (E3-3) sẽ dùng để enqueue từ webhook route.
 
@@ -223,29 +229,29 @@ git commit -m "feat(queue): add REVIEW_QUEUE_NAME and ReviewJobPayload contract"
 
 ```typescript
 // packages/queue/src/queue.test.ts
-import { afterEach, describe, expect, it } from 'vitest';
-import { createReviewQueue } from './queue.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { afterEach, describe, expect, it } from "vitest";
+import { createReviewQueue } from "./queue.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
-describe('createReviewQueue', () => {
+describe("createReviewQueue", () => {
   const queue = createReviewQueue();
 
   afterEach(async () => {
     await queue.obliterate({ force: true });
   });
 
-  it('applies defaultJobOptions with attempts: 3 and exponential backoff', async () => {
+  it("applies defaultJobOptions with attempts: 3 and exponential backoff", async () => {
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 42,
-      headSha: 'abc123',
+      headSha: "abc123",
     };
 
     const job = await queue.add(REVIEW_QUEUE_NAME, payload);
 
     expect(job.opts.attempts).toBe(3);
-    expect(job.opts.backoff).toEqual({ type: 'exponential', delay: 5000 });
+    expect(job.opts.backoff).toEqual({ type: "exponential", delay: 5000 });
   });
 });
 ```
@@ -259,16 +265,16 @@ Expected: FAIL — `Cannot find module './queue.js'`.
 
 ```typescript
 // packages/queue/src/queue.ts
-import { Queue } from 'bullmq';
-import { createRedisConnection } from './connection.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { Queue } from "bullmq";
+import { createRedisConnection } from "./connection.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
 export function createReviewQueue(): Queue<ReviewJobPayload> {
   return new Queue<ReviewJobPayload>(REVIEW_QUEUE_NAME, {
     connection: createRedisConnection(),
     defaultJobOptions: {
       attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
+      backoff: { type: "exponential", delay: 5000 },
     },
   });
 }
@@ -291,10 +297,12 @@ git commit -m "feat(queue): add createReviewQueue factory with retry defaults"
 ### Task 4: Worker factory + round-trip + retry (`worker.ts`)
 
 **Files:**
+
 - Create: `packages/queue/src/worker.ts`
 - Test: `packages/queue/src/worker.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createRedisConnection()` (Task 1), `createReviewQueue()` (Task 3), `REVIEW_QUEUE_NAME`, `ReviewJobPayload` (Task 2).
 - Produces: `createReviewWorker(processor: (job: Job<ReviewJobPayload>) => Promise<void>): Worker<ReviewJobPayload>` — Track B (E3-4) sẽ dùng trong `apps/worker/src/index.ts`.
 
@@ -302,12 +310,12 @@ git commit -m "feat(queue): add createReviewQueue factory with retry defaults"
 
 ```typescript
 // packages/queue/src/worker.test.ts
-import { afterEach, describe, expect, it } from 'vitest';
-import { createReviewQueue } from './queue.js';
-import { createReviewWorker } from './worker.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { afterEach, describe, expect, it } from "vitest";
+import { createReviewQueue } from "./queue.js";
+import { createReviewWorker } from "./worker.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
-describe('createReviewWorker', () => {
+describe("createReviewWorker", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
   let worker: ReturnType<typeof createReviewWorker> | undefined;
 
@@ -319,13 +327,13 @@ describe('createReviewWorker', () => {
     worker = undefined;
   });
 
-  it('receives the job added to the queue', async () => {
+  it("receives the job added to the queue", async () => {
     queue = createReviewQueue();
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 42,
-      headSha: 'abc123',
+      headSha: "abc123",
     };
     let receivedPayload: ReviewJobPayload | undefined;
 
@@ -334,7 +342,7 @@ describe('createReviewWorker', () => {
     });
 
     const completed = new Promise<void>((resolve) => {
-      worker!.on('completed', () => resolve());
+      worker!.on("completed", () => resolve());
     });
 
     await queue.add(REVIEW_QUEUE_NAME, payload);
@@ -343,35 +351,35 @@ describe('createReviewWorker', () => {
     expect(receivedPayload).toEqual(payload);
   });
 
-  it('retries up to 3 attempts before completing (defaultJobOptions.attempts)', async () => {
+  it("retries up to 3 attempts before completing (defaultJobOptions.attempts)", async () => {
     queue = createReviewQueue();
     const payload: ReviewJobPayload = {
-      owner: 'octo',
-      repo: 'hello-world',
+      owner: "octo",
+      repo: "hello-world",
       prNumber: 43,
-      headSha: 'def456',
+      headSha: "def456",
     };
     let callCount = 0;
 
     worker = createReviewWorker(async () => {
       callCount++;
       if (callCount < 3) {
-        throw new Error('transient failure');
+        throw new Error("transient failure");
       }
     });
 
     const completed = new Promise<void>((resolve) => {
-      worker!.on('completed', () => resolve());
+      worker!.on("completed", () => resolve());
     });
-    worker.on('failed', () => {
-      throw new Error('job should not reach failed state within 3 attempts');
+    worker.on("failed", () => {
+      throw new Error("job should not reach failed state within 3 attempts");
     });
 
     // backoff ngắn (100ms) chỉ để test chạy nhanh — attempts vẫn lấy từ
     // defaultJobOptions của queue (không override ở đây), nên vẫn đang test
     // đúng field attempts: 3 của Task 3.
     await queue.add(REVIEW_QUEUE_NAME, payload, {
-      backoff: { type: 'exponential', delay: 100 },
+      backoff: { type: "exponential", delay: 100 },
     });
     await completed;
 
@@ -389,9 +397,9 @@ Expected: FAIL — `Cannot find module './worker.js'`.
 
 ```typescript
 // packages/queue/src/worker.ts
-import { Worker, type Job } from 'bullmq';
-import { createRedisConnection } from './connection.js';
-import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from './types.js';
+import { Worker, type Job } from "bullmq";
+import { createRedisConnection } from "./connection.js";
+import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 
 export function createReviewWorker(
   processor: (job: Job<ReviewJobPayload>) => Promise<void>,
@@ -419,10 +427,12 @@ git commit -m "feat(queue): add createReviewWorker factory with round-trip and r
 ### Task 5: Barrel export + build verification
 
 **Files:**
+
 - Create: `packages/queue/src/index.ts`
 - Test: `packages/queue/src/index.test.ts`
 
 **Interfaces:**
+
 - Consumes: mọi export từ `types.ts`, `queue.ts`, `worker.ts`.
 - Produces: entry point `@happyfeeling/queue` — Track A/B sẽ `import { createReviewQueue, createReviewWorker, REVIEW_QUEUE_NAME, type ReviewJobPayload } from '@happyfeeling/queue'`.
 
@@ -430,14 +440,18 @@ git commit -m "feat(queue): add createReviewWorker factory with round-trip and r
 
 ```typescript
 // packages/queue/src/index.test.ts
-import { describe, expect, it } from 'vitest';
-import { REVIEW_QUEUE_NAME, createReviewQueue, createReviewWorker } from './index.js';
+import { describe, expect, it } from "vitest";
+import {
+  REVIEW_QUEUE_NAME,
+  createReviewQueue,
+  createReviewWorker,
+} from "./index.js";
 
-describe('package barrel export', () => {
-  it('exposes REVIEW_QUEUE_NAME, createReviewQueue, createReviewWorker', () => {
-    expect(REVIEW_QUEUE_NAME).toBe('review');
-    expect(typeof createReviewQueue).toBe('function');
-    expect(typeof createReviewWorker).toBe('function');
+describe("package barrel export", () => {
+  it("exposes REVIEW_QUEUE_NAME, createReviewQueue, createReviewWorker", () => {
+    expect(REVIEW_QUEUE_NAME).toBe("review");
+    expect(typeof createReviewQueue).toBe("function");
+    expect(typeof createReviewWorker).toBe("function");
   });
 });
 ```
@@ -451,9 +465,9 @@ Expected: FAIL — `Cannot find module './index.js'`.
 
 ```typescript
 // packages/queue/src/index.ts
-export * from './types.js';
-export * from './queue.js';
-export * from './worker.js';
+export * from "./types.js";
+export * from "./queue.js";
+export * from "./worker.js";
 ```
 
 - [ ] **Step 4: Chạy test, xác nhận pass**
@@ -478,9 +492,11 @@ git commit -m "feat(queue): add barrel export for @happyfeeling/queue"
 ### Task 6: Subpath exports cho `packages/github`
 
 **Files:**
+
 - Modify: `packages/github/package.json` (chỉ thêm field `exports`, không đổi field nào khác)
 
 **Interfaces:**
+
 - Consumes: file build sẵn trong `packages/github/dist/**` (đã tồn tại từ trước, không tạo mới trong task này).
 - Produces: subpath `./webhook/verify`, `./webhook/parse`, `./pipeline`, `./github/auth`, `./config`, `./logger` — Track A (E3-3) dùng `webhook/verify` + `webhook/parse`; Track B (E3-4) dùng `pipeline`, `github/auth`, `config`, `logger`.
 

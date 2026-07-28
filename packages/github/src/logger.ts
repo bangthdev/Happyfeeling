@@ -1,5 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import fs from "node:fs";
+import path from "node:path";
 
 export interface Metrics {
   pr_number: number;
@@ -9,11 +9,14 @@ export interface Metrics {
   tokens_used: number;
 }
 
-export function logMetrics(metrics: Metrics, logFilePath = 'logs/metrics.log'): void {
+export function logMetrics(
+  metrics: Metrics,
+  logFilePath = "logs/metrics.log",
+): void {
   const line = JSON.stringify(metrics);
   console.log(line);
 
   const dir = path.dirname(logFilePath);
   fs.mkdirSync(dir, { recursive: true });
-  fs.appendFileSync(logFilePath, line + '\n');
+  fs.appendFileSync(logFilePath, line + "\n");
 }
