@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chunkDiff } from "./diffChunker.js";
+import { chunkDiff, estimateTokens } from "./diffChunker.js";
 
 function fileBlock(path: string, bodyLines: number, charsPerLine = 20): string {
   const body = Array.from({ length: bodyLines }, (_, i) =>
@@ -76,5 +76,47 @@ describe("chunkDiff", () => {
 
   it("returns an empty array for an empty diff", () => {
     expect(chunkDiff("", 1000)).toEqual([]);
+  });
+
+  it("preserves every hunk exactly once across multiple flush cycles", () => {
+    const header = "diff --git a/many.ts b/many.ts\n";
+    const hunks = Array.from(
+      { length: 5 },
+      (_, i) => `@@ -${i},1 +${i},3 @@\n+${"x".repeat(40)}\n`,
+    );
+    const diff = header + hunks.join("");
+
+    const headerAndFirstHunkTokens = Math.ceil((header + hunks[0]).length / 4);
+    const chunks = chunkDiff(diff, headerAndFirstHunkTokens + 2);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    const hunksOnly = chunks
+      .map((c: { diff: string }) => c.diff.slice(header.length))
+      .join("");
+    expect(hunksOnly).toBe(hunks.join(""));
+  });
+});
+
+describe("estimateTokens", () => {
+  it("estimates CJK-heavy text far above the flat 4-chars-per-token ratio", () => {
+    const asciiText = "a".repeat(20);
+    const cjkText = "測".repeat(20);
+
+    expect(estimateTokens(asciiText)).toBe(5);
+    expect(estimateTokens(cjkText)).toBeGreaterThan(15);
+  });
+
+  it("sums each character class separately for mixed CJK and ASCII text", () => {
+    const mixed = "測".repeat(10) + "a".repeat(20);
+
+    expect(estimateTokens(mixed)).toBe(15);
+  });
+
+  it("counts CJK punctuation and fullwidth forms at close to 1 token per character too", () => {
+    const punctuation = "、".repeat(20); // ideographic comma, U+3001
+    const fullwidth = "Ａ".repeat(20); // fullwidth "A", U+FF21
+
+    expect(estimateTokens(punctuation)).toBeGreaterThan(15);
+    expect(estimateTokens(fullwidth)).toBeGreaterThan(15);
   });
 });
