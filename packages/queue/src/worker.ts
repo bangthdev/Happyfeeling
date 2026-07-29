@@ -6,8 +6,12 @@ import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 export function createReviewWorker(
   processor: (job: Job<ReviewJobPayload>) => Promise<void>,
   connection: Redis = createRedisConnection(),
+  // Override only exists so tests can isolate themselves onto a distinct
+  // real Redis queue instead of colliding on REVIEW_QUEUE_NAME — production
+  // callers never pass this.
+  queueName: string = REVIEW_QUEUE_NAME,
 ): Worker<ReviewJobPayload> {
-  return new Worker<ReviewJobPayload>(REVIEW_QUEUE_NAME, processor, {
+  return new Worker<ReviewJobPayload>(queueName, processor, {
     connection,
     // A stalled job (worker crashed/OOM'd/redeployed mid-job) would otherwise
     // be retried once by BullMQ regardless of defaultJobOptions.attempts: 1,

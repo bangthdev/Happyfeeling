@@ -2,9 +2,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createReviewQueue } from "./queue.js";
 import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
 import { ONE_DAY_SECONDS } from "./retention.js";
+import { createRedisConnection } from "./connection.js";
+
+// Isolated onto its own queue name (not REVIEW_QUEUE_NAME) — this file and
+// worker.test.ts/worker.integration.test.ts all hit a real Redis, and would
+// otherwise race on the same queue when their test files run concurrently.
+const TEST_QUEUE_NAME = "review-queue-test";
 
 describe("createReviewQueue", () => {
-  const queue = createReviewQueue();
+  const queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
 
   afterEach(async () => {
     await queue.obliterate({ force: true });

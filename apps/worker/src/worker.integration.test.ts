@@ -2,8 +2,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createReviewQueue,
   createReviewWorker,
+  createRedisConnection,
   REVIEW_QUEUE_NAME,
 } from "@b3-review/queue";
+
+// Isolated onto its own queue name — packages/queue/src/queue.test.ts and
+// worker.test.ts also hit a real Redis, and would otherwise race on the
+// same queue when their test files run concurrently.
+const TEST_QUEUE_NAME = "review-worker-integration-test";
 import { prisma } from "@b3-review/db";
 import { computeDedupHash } from "@b3-review/github/review/dedup";
 import { processReviewJob, persistFinding } from "./processJob.js";
@@ -50,7 +56,7 @@ describe("worker (real Redis + real Postgres)", () => {
   });
 
   it("picks up an enqueued job and writes exactly one Finding row", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const posted = [
       {
         file: "src/x.ts",
@@ -62,16 +68,19 @@ describe("worker (real Redis + real Postgres)", () => {
     ];
     const runPipeline = fakeRunPipeline(posted);
 
-    worker = createReviewWorker((job) =>
-      processReviewJob(job, {
-        runPipeline,
-        pipelineDeps: {
-          getToken: async () => "tok",
-          openrouterApiKey: "k",
-          filterNewFindings: async (_repo, _prNumber, findings) => findings,
-          persistFinding,
-        },
-      }),
+    worker = createReviewWorker(
+      (job) =>
+        processReviewJob(job, {
+          runPipeline,
+          pipelineDeps: {
+            getToken: async () => "tok",
+            openrouterApiKey: "k",
+            filterNewFindings: async (_repo, _prNumber, findings) => findings,
+            persistFinding,
+          },
+        }),
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
     );
 
     const completed = new Promise<void>((resolve) => {
@@ -100,7 +109,7 @@ describe("worker (real Redis + real Postgres)", () => {
   });
 
   it("does not crash on a redelivered job reporting the same finding twice, and leaves exactly one row", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const posted = [
       {
         file: "src/x.ts",
@@ -112,16 +121,19 @@ describe("worker (real Redis + real Postgres)", () => {
     ];
     const runPipeline = fakeRunPipeline(posted);
 
-    worker = createReviewWorker((job) =>
-      processReviewJob(job, {
-        runPipeline,
-        pipelineDeps: {
-          getToken: async () => "tok",
-          openrouterApiKey: "k",
-          filterNewFindings: async (_repo, _prNumber, findings) => findings,
-          persistFinding,
-        },
-      }),
+    worker = createReviewWorker(
+      (job) =>
+        processReviewJob(job, {
+          runPipeline,
+          pipelineDeps: {
+            getToken: async () => "tok",
+            openrouterApiKey: "k",
+            filterNewFindings: async (_repo, _prNumber, findings) => findings,
+            persistFinding,
+          },
+        }),
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
     );
 
     let completedCount = 0;

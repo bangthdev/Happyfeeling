@@ -6,8 +6,12 @@ import { ONE_DAY_SECONDS } from "./retention.js";
 
 export function createReviewQueue(
   connection: Redis = createRedisConnection(),
+  // Override only exists so tests can isolate themselves onto a distinct
+  // real Redis queue instead of colliding on REVIEW_QUEUE_NAME — production
+  // callers never pass this.
+  queueName: string = REVIEW_QUEUE_NAME,
 ): Queue<ReviewJobPayload> {
-  return new Queue<ReviewJobPayload>(REVIEW_QUEUE_NAME, {
+  return new Queue<ReviewJobPayload>(queueName, {
     connection,
     defaultJobOptions: {
       // No retry: postFindings has no idempotency check against existing PR

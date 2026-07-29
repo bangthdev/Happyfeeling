@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createReviewQueue } from "./queue.js";
 import { createReviewWorker } from "./worker.js";
 import { REVIEW_QUEUE_NAME, type ReviewJobPayload } from "./types.js";
+import { createRedisConnection } from "./connection.js";
+
+// Isolated onto its own queue name — see queue.test.ts for why.
+const TEST_QUEUE_NAME = "review-worker-test";
 
 describe("createReviewWorker", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
@@ -14,7 +18,7 @@ describe("createReviewWorker", () => {
   });
 
   it("receives the job added to the queue", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const payload: ReviewJobPayload = {
       owner: "octo",
       repo: "hello-world",
@@ -24,9 +28,13 @@ describe("createReviewWorker", () => {
     };
     let receivedPayload: ReviewJobPayload | undefined;
 
-    worker = createReviewWorker(async (job) => {
-      receivedPayload = job.data;
-    });
+    worker = createReviewWorker(
+      async (job) => {
+        receivedPayload = job.data;
+      },
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
+    );
 
     const completed = new Promise<void>((resolve) => {
       worker!.on("completed", () => resolve());
@@ -39,8 +47,12 @@ describe("createReviewWorker", () => {
   });
 
   it("disables stalled-job recovery (maxStalledCount: 0)", () => {
-    queue = createReviewQueue();
-    worker = createReviewWorker(async () => {});
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
+    worker = createReviewWorker(
+      async () => {},
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
+    );
 
     // Default BullMQ behavior retries a stalled job once (worker died mid-job,
     // e.g. crash/OOM/redeploy) regardless of attempts: 1 — that retry would
@@ -50,8 +62,12 @@ describe("createReviewWorker", () => {
   });
 
   it("uses a generous lockDuration so a brief Redis blip isn't mistaken for a dead worker", () => {
-    queue = createReviewQueue();
-    worker = createReviewWorker(async () => {});
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
+    worker = createReviewWorker(
+      async () => {},
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
+    );
 
     // With maxStalledCount: 0, a job is failed permanently (no retry) the
     // moment it's considered stalled. The default lockDuration (30s) would
@@ -62,7 +78,7 @@ describe("createReviewWorker", () => {
   });
 
   it("does not retry a failed job (defaultJobOptions.attempts: 1)", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const payload: ReviewJobPayload = {
       owner: "octo",
       repo: "hello-world",
@@ -72,10 +88,14 @@ describe("createReviewWorker", () => {
     };
     let callCount = 0;
 
-    worker = createReviewWorker(async () => {
-      callCount++;
-      throw new Error("permanent failure");
-    });
+    worker = createReviewWorker(
+      async () => {
+        callCount++;
+        throw new Error("permanent failure");
+      },
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
+    );
 
     const failed = new Promise<void>((resolve) => {
       worker!.on("failed", () => resolve());
