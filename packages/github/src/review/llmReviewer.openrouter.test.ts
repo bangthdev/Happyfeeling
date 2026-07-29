@@ -170,6 +170,63 @@ describe("reviewDiff (OpenRouter)", () => {
     expect(result.tokensUsed).toBe(150);
   });
 
+  it("resolves a finding on a file whose name has non-ASCII characters instead of dropping it", async () => {
+    const diff = `diff --git "a/f\\303\\251o.ts" "b/f\\303\\251o.ts"
+@@ -1,3 +1,4 @@
+ const a = 1;
++const bug = 1;
+ const b = 2;
+ const c = 3;
+`;
+    const fetchFn = fakeFetch(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                {
+                  function: {
+                    name: "submit_findings",
+                    arguments: JSON.stringify({
+                      findings: [
+                        {
+                          file: "féo.ts",
+                          codeSnippet: "const bug = 1;",
+                          severity: "high",
+                          message: "bug",
+                          suggestion: "fix it",
+                        },
+                      ],
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 50 },
+      }),
+    }));
+
+    const result = await reviewDiff(
+      { diff, files: ["féo.ts"] },
+      "fake-key",
+      fetchFn,
+    );
+
+    expect(result.findings).toEqual([
+      {
+        file: "féo.ts",
+        line: 2,
+        severity: "high",
+        message: "bug",
+        suggestion: "fix it",
+        codeSnippet: "const bug = 1;",
+      },
+    ]);
+  });
+
   it("carries codeSnippet and fixedCode through into the final Finding", async () => {
     const diff = `diff --git a/src/x.ts b/src/x.ts
 @@ -1,3 +1,4 @@
@@ -344,7 +401,7 @@ diff --git a/src/b.ts b/src/b.ts
     expect(result.findings[0].file).toBe("src/b.ts");
   });
 
-  it("drops a finding instead of using an empty file when the diff --git header cannot be parsed", async () => {
+  it("resolves a finding whose diff --git header is quoted for a non-ASCII filename", async () => {
     const diff = `diff --git "a/tệp.ts" "b/tệp.ts"
 @@ -1,2 +1,3 @@
  const x = 1;
@@ -385,7 +442,17 @@ diff --git a/src/b.ts b/src/b.ts
 
     const result = await reviewDiff({ diff, files: [] }, "fake-key", fetchFn);
 
-    expect(result.findings).toEqual([]);
+    expect(result.findings).toEqual([
+      {
+        file: "tệp.ts",
+        line: 2,
+        severity: "low",
+        message: "m",
+        suggestion: "s",
+        codeSnippet: "const bug = 1;",
+        fixedCode: "const notBug = 1;",
+      },
+    ]);
   });
 
   it("prefers an exact hintFile match over a suffix match that appears earlier in the diff", async () => {
@@ -494,7 +561,7 @@ diff --git a/src/b.ts b/src/b.ts
     expect(result.findings).toEqual([]);
   });
 
-  it("drops the finding instead of guessing when the only content match is in a file whose header cannot be parsed and an unrelated file happens to share the same line", async () => {
+  it("uses the hint's exact match to disambiguate when one candidate's header is quoted for a non-ASCII filename", async () => {
     const diff = `diff --git "a/tệp.ts" "b/tệp.ts"
 @@ -1,2 +1,3 @@
  const x = 1;
@@ -544,7 +611,7 @@ diff --git a/src/other.ts b/src/other.ts
       fetchFn,
     );
 
-    expect(result.findings).toEqual([]);
+    expect(result.findings[0].file).toBe("tệp.ts");
   });
 
   it("retries once when the first response has no tool call", async () => {
