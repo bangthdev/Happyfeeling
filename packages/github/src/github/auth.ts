@@ -57,14 +57,20 @@ export function createInstallationTokenProvider(
   const fetchToken = deps.fetchToken ?? fetchInstallationToken;
   const createJwt = deps.createJwt ?? createAppJWT;
   let cached: InstallationToken | null = null;
+  let inFlight: Promise<InstallationToken> | null = null;
 
   return {
     async getToken(): Promise<string> {
       if (cached && cached.expiresAt.getTime() - Date.now() > 60_000) {
         return cached.token;
       }
-      const appJwt = createJwt(appId, privateKey);
-      cached = await fetchToken(appJwt, installationId);
+      if (!inFlight) {
+        const appJwt = createJwt(appId, privateKey);
+        inFlight = fetchToken(appJwt, installationId).finally(() => {
+          inFlight = null;
+        });
+      }
+      cached = await inFlight;
       return cached.token;
     },
   };
