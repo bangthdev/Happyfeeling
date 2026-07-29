@@ -25,6 +25,7 @@ export async function POST(req: Request): Promise<Response> {
       owner: event.owner,
       repo: event.repo,
       prNumber: event.prNumber,
+      baseSha: event.baseSha,
       headSha: event.headSha,
     },
     { jobId },

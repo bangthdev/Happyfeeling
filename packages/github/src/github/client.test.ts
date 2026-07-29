@@ -16,13 +16,14 @@ describe("getPullRequestDiff", () => {
       "tok",
       "acme",
       "widgets",
-      42,
+      "basesha1",
+      "sha1",
       fetchFn as unknown as typeof fetch,
     );
 
     expect(diff).toBe("diff --git a/x b/x\n...");
     expect(fetchFn).toHaveBeenCalledWith(
-      "https://api.github.com/repos/acme/widgets/pulls/42",
+      "https://api.github.com/repos/acme/widgets/compare/basesha1...sha1",
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer tok",
@@ -44,7 +45,8 @@ describe("getPullRequestDiff", () => {
         "tok",
         "acme",
         "widgets",
-        42,
+        "basesha1",
+        "sha1",
         fetchFn as unknown as typeof fetch,
       ),
     ).rejects.toThrow("404");

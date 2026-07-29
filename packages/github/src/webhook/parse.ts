@@ -2,6 +2,7 @@ export interface PullRequestEvent {
   owner: string;
   repo: string;
   prNumber: number;
+  baseSha: string;
   headSha: string;
   action: string;
 }
@@ -15,11 +16,24 @@ export function parsePullRequestEvent(body: unknown): PullRequestEvent | null {
   if (!payload.pull_request || !payload.repository) return null;
   if (!RELEVANT_ACTIONS.has(payload.action)) return null;
 
-  return {
-    owner: payload.repository.owner.login,
-    repo: payload.repository.name,
-    prNumber: payload.pull_request.number,
-    headSha: payload.pull_request.head.sha,
-    action: payload.action,
-  };
+  const owner = payload.repository.owner?.login;
+  const repo = payload.repository.name;
+  const prNumber = payload.pull_request.number;
+  const baseSha = payload.pull_request.base?.sha;
+  const headSha = payload.pull_request.head?.sha;
+  if (!owner || !repo || !prNumber || !baseSha || !headSha) {
+    console.error(
+      "parsePullRequestEvent: malformed payload, missing required field(s)",
+      {
+        hasOwner: !!owner,
+        hasRepo: !!repo,
+        hasPrNumber: !!prNumber,
+        hasBaseSha: !!baseSha,
+        hasHeadSha: !!headSha,
+      },
+    );
+    return null;
+  }
+
+  return { owner, repo, prNumber, baseSha, headSha, action: payload.action };
 }

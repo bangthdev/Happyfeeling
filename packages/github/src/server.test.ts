@@ -15,7 +15,11 @@ const SECRET = "test-secret";
 const PR_PAYLOAD = {
   action: "opened",
   repository: { name: "widgets", owner: { login: "acme" } },
-  pull_request: { number: 7, head: { sha: "sha1" } },
+  pull_request: {
+    number: 7,
+    base: { sha: "basesha1" },
+    head: { sha: "sha1" },
+  },
 };
 
 describe("GET /health", () => {

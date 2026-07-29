@@ -6,8 +6,35 @@ import {
 } from "@b3-review/queue";
 import { prisma } from "@b3-review/db";
 import { computeDedupHash } from "@b3-review/github/review/dedup";
-import { processReviewJob } from "./processJob.js";
+import { processReviewJob, persistFinding } from "./processJob.js";
 import { filterNewFindings } from "./dedupFilter.js";
+
+// Mimics what the real pipeline does: persist each posted finding via
+// deps.persistFinding as it's "posted", rather than in a separate bulk step —
+// processReviewJob itself no longer touches the DB.
+function fakeRunPipeline(
+  posted: {
+    file: string;
+    line: number;
+    severity: "high" | "medium" | "low";
+    message: string;
+    suggestion: string;
+  }[],
+) {
+  return async (
+    event: { owner: string; repo: string; prNumber: number },
+    deps: { persistFinding?: typeof persistFinding },
+  ) => {
+    for (const finding of posted) {
+      await deps.persistFinding?.(
+        `${event.owner}/${event.repo}`,
+        event.prNumber,
+        finding,
+      );
+    }
+    return { posted };
+  };
+}
 
 describe("worker (real Redis + real Postgres)", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
@@ -33,7 +60,7 @@ describe("worker (real Redis + real Postgres)", () => {
         suggestion: "sugg",
       },
     ];
-    const runPipeline = async () => ({ posted });
+    const runPipeline = fakeRunPipeline(posted);
 
     worker = createReviewWorker((job) =>
       processReviewJob(job, {
@@ -42,6 +69,7 @@ describe("worker (real Redis + real Postgres)", () => {
           getToken: async () => "tok",
           openrouterApiKey: "k",
           filterNewFindings: async (_repo, _prNumber, findings) => findings,
+          persistFinding,
         },
       }),
     );
@@ -54,6 +82,7 @@ describe("worker (real Redis + real Postgres)", () => {
       owner: "acme",
       repo: "integration-test",
       prNumber: 1,
+      baseSha: "basesha1",
       headSha: "sha1",
     });
     await completed;
@@ -81,7 +110,7 @@ describe("worker (real Redis + real Postgres)", () => {
         suggestion: "sugg",
       },
     ];
-    const runPipeline = async () => ({ posted });
+    const runPipeline = fakeRunPipeline(posted);
 
     worker = createReviewWorker((job) =>
       processReviewJob(job, {
@@ -90,6 +119,7 @@ describe("worker (real Redis + real Postgres)", () => {
           getToken: async () => "tok",
           openrouterApiKey: "k",
           filterNewFindings: async (_repo, _prNumber, findings) => findings,
+          persistFinding,
         },
       }),
     );
@@ -106,6 +136,7 @@ describe("worker (real Redis + real Postgres)", () => {
       owner: "acme",
       repo: "integration-test",
       prNumber: 1,
+      baseSha: "basesha1",
       headSha: "sha1",
     };
     await queue.add(REVIEW_QUEUE_NAME, payload);

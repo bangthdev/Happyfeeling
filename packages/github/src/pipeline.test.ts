@@ -47,6 +47,7 @@ describe("runReviewPipeline", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };
@@ -79,6 +80,7 @@ describe("runReviewPipeline", () => {
       ],
       skipped: 0,
       failed: [],
+      persistFailed: [],
     });
 
     const getToken = vi.fn().mockResolvedValue("tok");
@@ -107,7 +109,8 @@ describe("runReviewPipeline", () => {
       "tok",
       "acme",
       "widgets",
-      7,
+      "basesha1",
+      "sha1",
     );
     expect(postFindings).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -127,11 +130,103 @@ describe("runReviewPipeline", () => {
     );
   });
 
+  it("wires deps.persistFinding into postFindings' onPosted, so each finding persists right after it's posted", async () => {
+    const event: PullRequestEvent = {
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 7,
+      baseSha: "basesha1",
+      headSha: "sha1",
+      action: "opened",
+    };
+    const finding = {
+      file: "src/x.ts",
+      line: 1,
+      severity: "high" as const,
+      message: "m",
+      suggestion: "s",
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue(
+      "diff --git a/src/x.ts b/src/x.ts\n...",
+    );
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: [finding],
+      tokensUsed: 300,
+      chunksSkipped: 0,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [finding],
+      skipped: 0,
+      failed: [],
+      persistFailed: [],
+    });
+
+    const getToken = vi.fn().mockResolvedValue("tok");
+    const filterNewFindings = vi
+      .fn()
+      .mockImplementation(async (_repo, _prNumber, findings) => findings);
+    const persistFinding = vi.fn().mockResolvedValue(undefined);
+
+    await runReviewPipeline(event, {
+      getToken,
+      openrouterApiKey: "fake-openrouter-key",
+      filterNewFindings,
+      persistFinding,
+    });
+
+    const onPosted = vi.mocked(postFindings).mock.calls[0][0].onPosted;
+    expect(onPosted).toBeInstanceOf(Function);
+
+    await onPosted!(finding);
+    expect(persistFinding).toHaveBeenCalledWith("acme/widgets", 7, finding);
+  });
+
+  it("does not pass onPosted to postFindings when deps.persistFinding is not provided", async () => {
+    const event: PullRequestEvent = {
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 7,
+      baseSha: "basesha1",
+      headSha: "sha1",
+      action: "opened",
+    };
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue(
+      "diff --git a/src/x.ts b/src/x.ts\n...",
+    );
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: [],
+      tokensUsed: 0,
+      chunksSkipped: 0,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted: [],
+      skipped: 0,
+      failed: [],
+      persistFailed: [],
+    });
+
+    const getToken = vi.fn().mockResolvedValue("tok");
+    const filterNewFindings = vi
+      .fn()
+      .mockImplementation(async (_repo, _prNumber, findings) => findings);
+
+    await runReviewPipeline(event, {
+      getToken,
+      openrouterApiKey: "fake-openrouter-key",
+      filterNewFindings,
+    });
+
+    expect(vi.mocked(postFindings).mock.calls[0][0].onPosted).toBeUndefined();
+  });
+
   it("includes skipped_count in metrics when postFindings reports findings GitHub rejected", async () => {
     const event: PullRequestEvent = {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };
@@ -156,6 +251,7 @@ describe("runReviewPipeline", () => {
       posted: [],
       skipped: 2,
       failed: [],
+      persistFailed: [],
     });
 
     const getToken = vi.fn().mockResolvedValue("tok");
@@ -179,6 +275,7 @@ describe("runReviewPipeline", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };
@@ -195,6 +292,7 @@ describe("runReviewPipeline", () => {
       posted: [],
       skipped: 0,
       failed: [],
+      persistFailed: [],
     });
 
     const getToken = vi.fn().mockResolvedValue("tok");
@@ -218,6 +316,7 @@ describe("runReviewPipeline", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };
@@ -248,6 +347,7 @@ describe("runReviewPipeline", () => {
       posted: [fresh],
       skipped: 0,
       failed: [],
+      persistFailed: [],
     });
     const filterNewFindings = vi.fn().mockResolvedValue([fresh]);
 
@@ -279,6 +379,7 @@ describe("runReviewPipeline", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 9,
+      baseSha: "basesha1",
       headSha: "sha2",
       action: "opened",
     };
@@ -327,6 +428,7 @@ describe("runReviewPipeline", () => {
           suggestion: "s2",
         },
       ],
+      persistFailed: [],
     });
 
     const getToken = vi.fn().mockResolvedValue("tok");
@@ -355,11 +457,64 @@ describe("runReviewPipeline", () => {
     );
   });
 
+  it("throws PersistFailedError when a posted finding failed to persist, instead of completing silently", async () => {
+    const event: PullRequestEvent = {
+      owner: "acme",
+      repo: "widgets",
+      prNumber: 7,
+      baseSha: "basesha1",
+      headSha: "sha1",
+      action: "opened",
+    };
+    const posted = [
+      {
+        file: "src/x.ts",
+        line: 1,
+        severity: "high" as const,
+        message: "m",
+        suggestion: "s",
+      },
+    ];
+
+    vi.mocked(getPullRequestDiff).mockResolvedValue(
+      "diff --git a/src/x.ts b/src/x.ts\n...",
+    );
+    vi.mocked(reviewDiff).mockResolvedValue({
+      findings: posted,
+      tokensUsed: 100,
+      chunksSkipped: 0,
+    });
+    vi.mocked(postFindings).mockResolvedValue({
+      posted,
+      skipped: 0,
+      failed: [],
+      persistFailed: posted,
+    });
+
+    const getToken = vi.fn().mockResolvedValue("tok");
+    const filterNewFindings = vi
+      .fn()
+      .mockImplementation(async (_repo, _prNumber, findings) => findings);
+
+    await expect(
+      runReviewPipeline(event, {
+        getToken,
+        openrouterApiKey: "fake-openrouter-key",
+        filterNewFindings,
+        persistFinding: vi.fn(),
+      }),
+    ).rejects.toMatchObject({
+      name: "PersistFailedError",
+      posted,
+    });
+  });
+
   it("still posts and logs the findings collected before a partial review failure", async () => {
     const event: PullRequestEvent = {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };
@@ -387,6 +542,7 @@ describe("runReviewPipeline", () => {
       posted: partialFindings,
       skipped: 0,
       failed: [],
+      persistFailed: [],
     });
     const consoleErrorSpy = vi
       .spyOn(console, "error")
@@ -425,6 +581,7 @@ describe("runReviewPipeline", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
       action: "opened",
     };

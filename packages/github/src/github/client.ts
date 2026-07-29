@@ -12,11 +12,15 @@ export async function getPullRequestDiff(
   token: string,
   owner: string,
   repo: string,
-  prNumber: number,
+  baseSha: string,
+  headSha: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<string> {
+  // Compare API pins the diff to the exact commits captured at webhook time —
+  // GET /pulls/{number} always returns the PR's *current* head, which drifts
+  // if the author pushes again while this job is still queued/running.
   const res = await fetchFn(
-    `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+    `https://api.github.com/repos/${owner}/${repo}/compare/${baseSha}...${headSha}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
