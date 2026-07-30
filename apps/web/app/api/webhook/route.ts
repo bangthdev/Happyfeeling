@@ -1,6 +1,6 @@
 import { verifySignature } from "@b3-review/github/webhook/verify";
 import { parsePullRequestEvent } from "@b3-review/github/webhook/parse";
-import { REVIEW_QUEUE_NAME } from "@b3-review/queue";
+import { enqueueReviewJob } from "@b3-review/queue";
 import { getWebhookSecret } from "../../../lib/config";
 import { reviewQueue } from "../../../lib/queue";
 
@@ -19,17 +19,13 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const jobId = `${event.owner}/${event.repo}#${event.prNumber}@${event.headSha}`;
-  await reviewQueue.add(
-    REVIEW_QUEUE_NAME,
-    {
-      owner: event.owner,
-      repo: event.repo,
-      prNumber: event.prNumber,
-      baseSha: event.baseSha,
-      headSha: event.headSha,
-    },
-    { jobId },
-  );
+  await enqueueReviewJob(reviewQueue, jobId, {
+    owner: event.owner,
+    repo: event.repo,
+    prNumber: event.prNumber,
+    baseSha: event.baseSha,
+    headSha: event.headSha,
+  });
 
   return new Response("accepted", { status: 202 });
 }

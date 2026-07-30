@@ -56,6 +56,13 @@ services:
     # worker had "active" sits stuck forever (maxStalledCount/lockDuration in
     # worker.ts only help once some worker process is alive to check them).
     restart: unless-stopped
+    # Compose's 10s default would SIGKILL the container long before
+    # worker.close() can drain an in-flight job, defeating the graceful
+    # shutdown in apps/worker/src/index.ts. Three numbers have to stay ordered:
+    # this > lockDuration (15m, worker.ts) > worst-case job (~12.6m, from
+    # MAX_CHUNKS/REQUEST_TIMEOUT_MS/CHUNK_DELAY_MS in llmReviewer.openrouter.ts).
+    # Raising any of the latter two means raising this too.
+    stop_grace_period: 16m
 
 volumes:
   postgres-data:
