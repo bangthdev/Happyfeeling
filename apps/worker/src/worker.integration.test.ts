@@ -2,12 +2,45 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createReviewQueue,
   createReviewWorker,
+  createRedisConnection,
   REVIEW_QUEUE_NAME,
 } from "@b3-review/queue";
+
+// Isolated onto its own queue name — packages/queue/src/queue.test.ts and
+// worker.test.ts also hit a real Redis, and would otherwise race on the
+// same queue when their test files run concurrently.
+const TEST_QUEUE_NAME = "review-worker-integration-test";
 import { prisma } from "@b3-review/db";
 import { computeDedupHash } from "@b3-review/github/review/dedup";
-import { processReviewJob } from "./processJob.js";
+import { processReviewJob, persistFinding } from "./processJob.js";
 import { filterNewFindings } from "./dedupFilter.js";
+
+// Mimics what the real pipeline does: persist each posted finding via
+// deps.persistFinding as it's "posted", rather than in a separate bulk step —
+// processReviewJob itself no longer touches the DB.
+function fakeRunPipeline(
+  posted: {
+    file: string;
+    line: number;
+    severity: "high" | "medium" | "low";
+    message: string;
+    suggestion: string;
+  }[],
+) {
+  return async (
+    event: { owner: string; repo: string; prNumber: number },
+    deps: { persistFinding?: typeof persistFinding },
+  ) => {
+    for (const finding of posted) {
+      await deps.persistFinding?.(
+        `${event.owner}/${event.repo}`,
+        event.prNumber,
+        finding,
+      );
+    }
+    return { posted };
+  };
+}
 
 describe("worker (real Redis + real Postgres)", () => {
   let queue: ReturnType<typeof createReviewQueue> | undefined;
@@ -23,7 +56,7 @@ describe("worker (real Redis + real Postgres)", () => {
   });
 
   it("picks up an enqueued job and writes exactly one Finding row", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const posted = [
       {
         file: "src/x.ts",
@@ -33,17 +66,21 @@ describe("worker (real Redis + real Postgres)", () => {
         suggestion: "sugg",
       },
     ];
-    const runPipeline = async () => ({ posted });
+    const runPipeline = fakeRunPipeline(posted);
 
-    worker = createReviewWorker((job) =>
-      processReviewJob(job, {
-        runPipeline,
-        pipelineDeps: {
-          getToken: async () => "tok",
-          openrouterApiKey: "k",
-          filterNewFindings: async (_repo, _prNumber, findings) => findings,
-        },
-      }),
+    worker = createReviewWorker(
+      (job) =>
+        processReviewJob(job, {
+          runPipeline,
+          pipelineDeps: {
+            getToken: async () => "tok",
+            openrouterApiKey: "k",
+            filterNewFindings: async (_repo, _prNumber, findings) => findings,
+            persistFinding,
+          },
+        }),
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
     );
 
     const completed = new Promise<void>((resolve) => {
@@ -54,6 +91,7 @@ describe("worker (real Redis + real Postgres)", () => {
       owner: "acme",
       repo: "integration-test",
       prNumber: 1,
+      baseSha: "basesha1",
       headSha: "sha1",
     });
     await completed;
@@ -71,7 +109,7 @@ describe("worker (real Redis + real Postgres)", () => {
   });
 
   it("does not crash on a redelivered job reporting the same finding twice, and leaves exactly one row", async () => {
-    queue = createReviewQueue();
+    queue = createReviewQueue(createRedisConnection(), TEST_QUEUE_NAME);
     const posted = [
       {
         file: "src/x.ts",
@@ -81,17 +119,21 @@ describe("worker (real Redis + real Postgres)", () => {
         suggestion: "sugg",
       },
     ];
-    const runPipeline = async () => ({ posted });
+    const runPipeline = fakeRunPipeline(posted);
 
-    worker = createReviewWorker((job) =>
-      processReviewJob(job, {
-        runPipeline,
-        pipelineDeps: {
-          getToken: async () => "tok",
-          openrouterApiKey: "k",
-          filterNewFindings: async (_repo, _prNumber, findings) => findings,
-        },
-      }),
+    worker = createReviewWorker(
+      (job) =>
+        processReviewJob(job, {
+          runPipeline,
+          pipelineDeps: {
+            getToken: async () => "tok",
+            openrouterApiKey: "k",
+            filterNewFindings: async (_repo, _prNumber, findings) => findings,
+            persistFinding,
+          },
+        }),
+      createRedisConnection(),
+      TEST_QUEUE_NAME,
     );
 
     let completedCount = 0;
@@ -106,6 +148,7 @@ describe("worker (real Redis + real Postgres)", () => {
       owner: "acme",
       repo: "integration-test",
       prNumber: 1,
+      baseSha: "basesha1",
       headSha: "sha1",
     };
     await queue.add(REVIEW_QUEUE_NAME, payload);

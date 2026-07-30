@@ -79,4 +79,38 @@ describe("createInstallationTokenProvider", () => {
     expect(token2).toBe("token-2");
     expect(fetchToken).toHaveBeenCalledTimes(2);
   });
+
+  it("shares a single in-flight fetch when called concurrently on a stale cache", async () => {
+    const fetchToken = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                token: "installation-token-1",
+                expiresAt: new Date(Date.now() + 3600_000),
+              }),
+            10,
+          ),
+        ),
+    );
+    const provider = createInstallationTokenProvider(
+      "12345",
+      "fake-key",
+      "999",
+      {
+        fetchToken,
+        createJwt: () => "fake-jwt",
+      },
+    );
+
+    const [token1, token2] = await Promise.all([
+      provider.getToken(),
+      provider.getToken(),
+    ]);
+
+    expect(token1).toBe("installation-token-1");
+    expect(token2).toBe("installation-token-1");
+    expect(fetchToken).toHaveBeenCalledTimes(1);
+  });
 });

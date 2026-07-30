@@ -24,7 +24,11 @@ function makeRequest(body: string, signature?: string): Request {
 const PR_OPENED_PAYLOAD = JSON.stringify({
   action: "opened",
   repository: { name: "widgets", owner: { login: "acme" } },
-  pull_request: { number: 7, head: { sha: "sha1" } },
+  pull_request: {
+    number: 7,
+    base: { sha: "basesha1" },
+    head: { sha: "sha1" },
+  },
 });
 
 describe("POST /api/webhook", () => {
@@ -75,6 +79,7 @@ describe("POST /api/webhook", () => {
       owner: "acme",
       repo: "widgets",
       prNumber: 7,
+      baseSha: "basesha1",
       headSha: "sha1",
     });
   });

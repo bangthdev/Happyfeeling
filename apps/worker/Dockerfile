@@ -15,4 +15,7 @@ ENV NODE_ENV=production
 
 COPY --from=builder /repo ./
 
-CMD ["pnpm", "--filter", "@b3-review/worker", "start"]
+# node as PID 1 (not `pnpm start`) so Docker's SIGTERM reaches the worker
+# directly. Going through pnpm relies on it forwarding the signal to its child,
+# which the graceful shutdown in src/index.ts must not depend on.
+CMD ["node", "apps/worker/dist/index.js"]

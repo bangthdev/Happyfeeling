@@ -5,7 +5,6 @@ import type {
   PipelineDeps,
   PipelineResult,
 } from "@b3-review/github/pipeline";
-import { PartialPostError } from "@b3-review/github/pipeline";
 import type { PullRequestEvent } from "@b3-review/github/webhook/parse";
 import { computeDedupHash } from "@b3-review/github/review/dedup";
 import { prisma } from "@b3-review/db";
@@ -36,23 +35,27 @@ function toDbFinding(repoSlug: string, prNumber: number, finding: Finding) {
   };
 }
 
-async function persistFindings(
+// Persists one finding right after it's posted (wired into
+// PipelineDeps.persistFinding) — narrows the window between a finding
+// landing on GitHub and it being recorded, versus only ever persisting in
+// one bulk write after the entire batch finishes. This is the only place a
+// posted finding gets written to the DB — processReviewJob itself does not
+// persist anything, to avoid writing the same finding twice.
+export async function persistFinding(
   repoSlug: string,
   prNumber: number,
-  findings: Finding[],
+  finding: Finding,
 ): Promise<void> {
-  if (findings.length === 0) return;
-  // Real dedup happens upstream in the pipeline (filterNewFindings) before a finding
-  // ever reaches here. skipDuplicates only guards against a duplicate DB row (e.g. two
-  // workers racing on overlapping jobs) — it does not prevent a duplicate GitHub comment,
-  // since posting already happened earlier in the pipeline by the time this code runs.
+  // filterNewFindings already excludes findings seen before this call, so a
+  // dedupHash collision here means something unexpected raced this write
+  // (e.g. two workers processing overlapping jobs) — worth surfacing.
   const { count } = await prisma.finding.createMany({
-    data: findings.map((finding) => toDbFinding(repoSlug, prNumber, finding)),
+    data: [toDbFinding(repoSlug, prNumber, finding)],
     skipDuplicates: true,
   });
-  if (count < findings.length) {
+  if (count === 0) {
     console.error(
-      `PR #${prNumber}: persisted ${count} of ${findings.length} finding(s) — ${findings.length - count} skipped (dedupHash already existed)`,
+      `PR #${prNumber}: skipped persisting a finding — dedupHash already existed (e.g. two workers racing on overlapping jobs)`,
     );
   }
 }
@@ -61,30 +64,24 @@ export async function processReviewJob(
   job: Job<ReviewJobPayload>,
   deps: ProcessJobDeps,
 ): Promise<void> {
-  const { owner, repo, prNumber, headSha } = job.data;
+  const { owner, repo, prNumber, baseSha, headSha } = job.data;
+  if (!baseSha) {
+    // A queued job's payload may predate the current schema, or come from a
+    // producer bug — either way, processing it would hit GitHub's compare
+    // API with a literal "undefined" SHA. Fail loudly instead of silently
+    // mangling the request; a subsequent push to this PR enqueues a fresh
+    // job with the field populated. This guard stays permanently — baseSha
+    // is a required field going forward.
+    throw new Error(`PR #${prNumber}: job is missing baseSha — skipping`);
+  }
   const event: PullRequestEvent = {
     owner,
     repo,
     prNumber,
+    baseSha,
     headSha,
     action: "synchronize",
   };
-  const repoSlug = `${owner}/${repo}`;
 
-  try {
-    const { posted } = await deps.runPipeline(event, deps.pipelineDeps);
-    await persistFindings(repoSlug, prNumber, posted);
-  } catch (err) {
-    if (err instanceof PartialPostError) {
-      try {
-        await persistFindings(repoSlug, prNumber, err.posted);
-      } catch (persistErr) {
-        console.error(
-          `PR #${prNumber}: failed to persist the ${err.posted.length} finding(s) already posted before a partial-post failure`,
-          persistErr,
-        );
-      }
-    }
-    throw err;
-  }
+  await deps.runPipeline(event, deps.pipelineDeps);
 }

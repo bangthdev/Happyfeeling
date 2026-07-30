@@ -16,148 +16,27 @@ vi.mock("@b3-review/db", () => ({
 
 import { prisma } from "@b3-review/db";
 import { PartialPostError } from "@b3-review/github/pipeline";
-import { processReviewJob } from "./processJob.js";
+import { processReviewJob, persistFinding } from "./processJob.js";
 
 function fakeJob(data: ReviewJobPayload): Job<ReviewJobPayload> {
   return { data } as Job<ReviewJobPayload>;
 }
 
-describe("processReviewJob", () => {
+describe("persistFinding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("calls runPipeline with an event built from the job payload", async () => {
-    const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = {
-      getToken: vi.fn(),
-      openrouterApiKey: "fake-key",
-      filterNewFindings: vi.fn(),
+  it("persists a single finding via a 1-item createMany call, skipping duplicates", async () => {
+    const finding = {
+      file: "src/x.ts",
+      line: 10,
+      severity: "high" as const,
+      message: "bug here",
+      suggestion: "fix it",
     };
 
-    await processReviewJob(
-      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
-      { runPipeline, pipelineDeps },
-    );
-
-    expect(runPipeline).toHaveBeenCalledWith(
-      {
-        owner: "acme",
-        repo: "widgets",
-        prNumber: 7,
-        headSha: "sha1",
-        action: "synchronize",
-      },
-      pipelineDeps,
-    );
-  });
-
-  it("persists all posted findings in a single createMany call, skipping duplicates", async () => {
-    const posted = [
-      {
-        file: "src/x.ts",
-        line: 10,
-        severity: "high" as const,
-        message: "bug here",
-        suggestion: "fix it",
-      },
-      {
-        file: "src/y.ts",
-        line: 20,
-        severity: "low" as const,
-        message: "another",
-        suggestion: "fix2",
-      },
-    ];
-    const runPipeline = vi.fn().mockResolvedValue({ posted });
-    const pipelineDeps = {
-      getToken: vi.fn(),
-      openrouterApiKey: "fake-key",
-      filterNewFindings: vi.fn(),
-    };
-
-    await processReviewJob(
-      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
-      { runPipeline, pipelineDeps },
-    );
-
-    expect(prisma.finding.createMany).toHaveBeenCalledTimes(1);
-    expect(prisma.finding.createMany).toHaveBeenCalledWith({
-      data: [
-        {
-          repo: "acme/widgets",
-          prNumber: 7,
-          filePath: "src/x.ts",
-          line: 10,
-          errorType: "high",
-          message: "bug here",
-          dedupHash: expect.any(String),
-        },
-        {
-          repo: "acme/widgets",
-          prNumber: 7,
-          filePath: "src/y.ts",
-          line: 20,
-          errorType: "low",
-          message: "another",
-          dedupHash: expect.any(String),
-        },
-      ],
-      skipDuplicates: true,
-    });
-  });
-
-  it("writes no rows when nothing was posted", async () => {
-    const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
-    const pipelineDeps = {
-      getToken: vi.fn(),
-      openrouterApiKey: "fake-key",
-      filterNewFindings: vi.fn(),
-    };
-
-    await processReviewJob(
-      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
-      { runPipeline, pipelineDeps },
-    );
-
-    expect(prisma.finding.createMany).not.toHaveBeenCalled();
-  });
-
-  it("persists findings already posted before a PartialPostError, then rethrows it", async () => {
-    const posted = [
-      {
-        file: "src/x.ts",
-        line: 10,
-        severity: "high" as const,
-        message: "bug",
-        suggestion: "fix",
-      },
-    ];
-    const partialPostError = new PartialPostError(
-      "Failed to post 1 of 2 finding(s) for PR #7",
-      posted,
-    );
-    const runPipeline = vi.fn().mockRejectedValue(partialPostError);
-    const pipelineDeps = {
-      getToken: vi.fn(),
-      openrouterApiKey: "fake-key",
-      filterNewFindings: vi.fn(),
-    };
-
-    await expect(
-      processReviewJob(
-        fakeJob({
-          owner: "acme",
-          repo: "widgets",
-          prNumber: 7,
-          headSha: "sha1",
-        }),
-        {
-          runPipeline,
-          pipelineDeps,
-        },
-      ),
-    ).rejects.toBe(partialPostError);
+    await persistFinding("acme/widgets", 7, finding);
 
     expect(prisma.finding.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.finding.createMany).toHaveBeenCalledWith({
@@ -173,8 +52,35 @@ describe("processReviewJob", () => {
     });
   });
 
-  it("re-throws non-PartialPostError failures from runPipeline without persisting anything", async () => {
-    const runPipeline = vi.fn().mockRejectedValue(new Error("network down"));
+  it("logs a warning when the dedupHash already existed (an unexpected collision, e.g. racing workers)", async () => {
+    vi.mocked(prisma.finding.createMany).mockResolvedValueOnce({ count: 0 });
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const finding = {
+      file: "src/x.ts",
+      line: 10,
+      severity: "high" as const,
+      message: "bug here",
+      suggestion: "fix it",
+    };
+
+    await persistFinding("acme/widgets", 7, finding);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("dedupHash already existed"),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("processReviewJob", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws a clear error instead of calling runPipeline when baseSha is missing (a job enqueued before a deploy that added the field)", async () => {
+    const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
     const pipelineDeps = {
       getToken: vi.fn(),
       openrouterApiKey: "fake-key",
@@ -183,37 +89,61 @@ describe("processReviewJob", () => {
 
     await expect(
       processReviewJob(
-        fakeJob({
-          owner: "acme",
-          repo: "widgets",
-          prNumber: 7,
-          headSha: "sha1",
-        }),
         {
-          runPipeline,
-          pipelineDeps,
-        },
+          data: {
+            owner: "acme",
+            repo: "widgets",
+            prNumber: 7,
+            headSha: "sha1",
+          },
+        } as Job<ReviewJobPayload>,
+        { runPipeline, pipelineDeps },
       ),
-    ).rejects.toThrow("network down");
+    ).rejects.toThrow(/baseSha/);
 
-    expect(prisma.finding.createMany).not.toHaveBeenCalled();
+    expect(runPipeline).not.toHaveBeenCalled();
   });
 
-  it("logs a warning when fewer rows are persisted than posted (an unexpected dedupHash collision)", async () => {
+  it("calls runPipeline with an event built from the job payload", async () => {
+    const runPipeline = vi.fn().mockResolvedValue({ posted: [] });
+    const pipelineDeps = {
+      getToken: vi.fn(),
+      openrouterApiKey: "fake-key",
+      filterNewFindings: vi.fn(),
+    };
+
+    await processReviewJob(
+      fakeJob({
+        owner: "acme",
+        repo: "widgets",
+        prNumber: 7,
+        baseSha: "basesha1",
+        headSha: "sha1",
+      }),
+      { runPipeline, pipelineDeps },
+    );
+
+    expect(runPipeline).toHaveBeenCalledWith(
+      {
+        owner: "acme",
+        repo: "widgets",
+        prNumber: 7,
+        baseSha: "basesha1",
+        headSha: "sha1",
+        action: "synchronize",
+      },
+      pipelineDeps,
+    );
+  });
+
+  it("does not touch the database itself — persistence happens inside the pipeline via pipelineDeps.persistFinding", async () => {
     const posted = [
       {
         file: "src/x.ts",
         line: 10,
         severity: "high" as const,
-        message: "m1",
-        suggestion: "s1",
-      },
-      {
-        file: "src/y.ts",
-        line: 20,
-        severity: "low" as const,
-        message: "m2",
-        suggestion: "s2",
+        message: "bug here",
+        suggestion: "fix it",
       },
     ];
     const runPipeline = vi.fn().mockResolvedValue({ posted });
@@ -222,35 +152,33 @@ describe("processReviewJob", () => {
       openrouterApiKey: "fake-key",
       filterNewFindings: vi.fn(),
     };
-    vi.mocked(prisma.finding.createMany).mockResolvedValueOnce({ count: 1 });
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
 
     await processReviewJob(
-      fakeJob({ owner: "acme", repo: "widgets", prNumber: 7, headSha: "sha1" }),
+      fakeJob({
+        owner: "acme",
+        repo: "widgets",
+        prNumber: 7,
+        baseSha: "basesha1",
+        headSha: "sha1",
+      }),
       { runPipeline, pipelineDeps },
     );
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("persisted 1 of 2"),
-    );
-    consoleErrorSpy.mockRestore();
+    expect(prisma.finding.createMany).not.toHaveBeenCalled();
   });
 
-  it("still rethrows the original PartialPostError even if persisting its findings also fails", async () => {
-    const posted = [
-      {
-        file: "src/x.ts",
-        line: 10,
-        severity: "high" as const,
-        message: "bug",
-        suggestion: "fix",
-      },
-    ];
+  it("propagates whatever error runPipeline throws, unchanged", async () => {
     const partialPostError = new PartialPostError(
       "Failed to post 1 of 2 finding(s) for PR #7",
-      posted,
+      [
+        {
+          file: "src/x.ts",
+          line: 10,
+          severity: "high" as const,
+          message: "bug",
+          suggestion: "fix",
+        },
+      ],
     );
     const runPipeline = vi.fn().mockRejectedValue(partialPostError);
     const pipelineDeps = {
@@ -258,12 +186,6 @@ describe("processReviewJob", () => {
       openrouterApiKey: "fake-key",
       filterNewFindings: vi.fn(),
     };
-    vi.mocked(prisma.finding.createMany).mockRejectedValueOnce(
-      new Error("connection reset"),
-    );
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
 
     await expect(
       processReviewJob(
@@ -271,16 +193,13 @@ describe("processReviewJob", () => {
           owner: "acme",
           repo: "widgets",
           prNumber: 7,
+          baseSha: "basesha1",
           headSha: "sha1",
         }),
-        {
-          runPipeline,
-          pipelineDeps,
-        },
+        { runPipeline, pipelineDeps },
       ),
     ).rejects.toBe(partialPostError);
 
-    expect(consoleErrorSpy).toHaveBeenCalled();
-    consoleErrorSpy.mockRestore();
+    expect(prisma.finding.createMany).not.toHaveBeenCalled();
   });
 });

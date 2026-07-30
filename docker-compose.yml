@@ -10,11 +10,16 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # web/worker restart on their own if postgres is unreachable, but
+    # postgres itself won't come back up without this — without it, a crashed
+    # postgres means total downtime until someone runs `docker compose up` by hand.
+    restart: unless-stopped
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    restart: unless-stopped
 
   web:
     build:
@@ -29,6 +34,7 @@ services:
     depends_on:
       - postgres
       - redis
+    restart: unless-stopped
 
   worker:
     build:
@@ -45,6 +51,18 @@ services:
     depends_on:
       - postgres
       - redis
+    # Without this, a crashed worker container just stays down — nothing is
+    # left running BullMQ's own stalled-job detection, so a job the crashed
+    # worker had "active" sits stuck forever (maxStalledCount/lockDuration in
+    # worker.ts only help once some worker process is alive to check them).
+    restart: unless-stopped
+    # Compose's 10s default would SIGKILL the container long before
+    # worker.close() can drain an in-flight job, defeating the graceful
+    # shutdown in apps/worker/src/index.ts. Three numbers have to stay ordered:
+    # this > lockDuration (15m, worker.ts) > worst-case job (~12.6m, from
+    # MAX_CHUNKS/REQUEST_TIMEOUT_MS/CHUNK_DELAY_MS in llmReviewer.openrouter.ts).
+    # Raising any of the latter two means raising this too.
+    stop_grace_period: 16m
 
 volumes:
   postgres-data:
